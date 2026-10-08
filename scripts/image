@@ -44,6 +44,7 @@ function do_mkimage() {
     IMAGE_NAME="${1:-${IMAGE_NAME}}" \
     BOOTLOADER="${BOOTLOADER}" \
     KERNEL_NAME="${KERNEL_NAME}" \
+    DTBIMG="${DTBIMG}" \
     TARGET_KERNEL_ARCH="${TARGET_KERNEL_ARCH}" \
     RELEASE_DIR="${RELEASE_DIR}" \
     UUID_SYSTEM="${UUID_SYSTEM}" \
