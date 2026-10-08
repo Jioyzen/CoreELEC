@@ -197,13 +197,14 @@
  					return NULL;
 --- /dev/null
 +++ b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,13 @@
 +// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 +// S905X2 / u212-compatible, 2 GiB DDR3, RTL8822CS SDIO.
 +#include "g12a_s905x2_2g.dts"
 +/ {
 +    model = "S905X2 u212-compatible 2GB RTL8822CS";
 +    amlogic-dt-id = "g12a_s905x2_u212_2g_rtl8822cs";
++    coreelec-dt-id = "g12a_s905x2_u212_2g_rtl8822cs";
 +};
 +&{/vpu} { clk_level = <8>; };
 +&{/reserved-memory/linux,meson-fb} {

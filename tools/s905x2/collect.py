@@ -22,7 +22,13 @@ assert dtb.exists(), 'custom DTB missing'
 assert run('fdtget','-t','u',str(dtb),'/vpu','clk_level')=='8'
 assert run('fdtget','-t','x',str(dtb),'/reserved-memory/linux,meson-fb','reg')=='0 7f800000 0 800000'
 assert run('fdtget',str(dtb),'/','amlogic-dt-id')==manifest['dt_id']
+assert run('fdtget',str(dtb),'/','coreelec-dt-id')==manifest['dt_id'], 'upgrade selector differs from custom board'
 assert 'sd-uhs-sdr104' in run('fdtget','-p',str(dtb),'/sd2@ffe05000')
+kodi=system/'usr/lib/kodi/kodi.bin'
+assert b'amcodec_dv: collect cold dual-layer input' in kodi.read_bytes(), 'native Kodi DV guard missing'
+assert b'amcodec_dv: restore EL parameters' in kodi.read_bytes(), 'native Kodi seek headers missing'
+hevc=list(system.rglob('amvdec_h265.ko'))
+assert len(hevc)==1 and b'dv_el_start_policy' in hevc[0].read_bytes(), 'native HEVC DV patch missing'
 # Select this build's image/tar by shared stem, excluding previous release copies.
 images=sorted(target.glob('*Amlogic-no.aarch64*Generic.img.gz'),key=lambda p:p.stat().st_mtime)
 assert images,'image missing'
