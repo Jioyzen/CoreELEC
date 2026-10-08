@@ -1,0 +1,43 @@
+--- a/drivers/frame_provider/decoder/h265/vh265.c
++++ b/drivers/frame_provider/decoder/h265/vh265.c
+@@ -435,6 +435,11 @@
+  *only for mode 0 and 1.
+  */
+ static u32 nal_skip_policy = 2;
++
++/* Select an EL-only start policy without changing BL or ordinary HEVC. */
++static int dv_el_start_policy = 0;
++module_param(dv_el_start_policy, int, 0644);
++MODULE_PARM_DESC(dv_el_start_policy, "DV EL-only initial NAL policy (-1 keeps stock)");
+ 
+ /*
+  *bit 0, 1: only display I picture;
+@@ -9399,6 +9404,11 @@
+ 	vf->duration = hevc->frame_dur;
+ 	vf->duration_pulldown = 0;
+ 	vf->flag = 0;
++#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
++	/* Keep EL queue/metadata intact; pass error validity to the composer. */
++	if (hw_to_vdec(hevc)->master && pic->error_mark)
++		vf->flag |= VFRAME_FLAG_ERROR_RECOVERY;
++#endif
+ 
+ 	ar = min_t(u32, hevc->frame_ar, DISP_RATIO_ASPECT_RATIO_MAX);
+ 	vf->ratio_control = (ar << DISP_RATIO_ASPECT_RATIO_BIT);
+@@ -16261,6 +16271,16 @@
+ 		hevc->nal_skip_policy &= ~(1 << 1);
+ 	}
+ 
++#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
++	/* EL parameter sets must be restored by the feeder after a seek reset.
++	 * Decode its preroll instead of scanning across intervening BL references.
++	 */
++	if (pdata->master && dv_el_start_policy >= 0 && dv_el_start_policy <= 3) {
++		hevc->nal_skip_policy = dv_el_start_policy;
++		hevc_print(hevc, 0, "DV EL start policy=%d\n", dv_el_start_policy);
++	}
++#endif
++
+ 	hevc_print(hevc, 0,
+ 		"Correction: policy 0x%x mode %d lcu_percentage_threshold %d\n",
+ 		hevc->nal_skip_policy, hevc->error_handle_mode, hevc->lcu_percentage_threshold);

@@ -1,0 +1,219 @@
+--- a/drivers/media/video_sink/video.c
++++ b/drivers/media/video_sink/video.c
+@@ -102,6 +102,7 @@
+ #include <linux/amlogic/media/video_sink/video.h>
+ #include <linux/amlogic/media/codec_mm/configs.h>
+ #include <linux/amlogic/media/codec_mm/codec_mm.h>
++#include <linux/amlogic/media/codec_mm/codec_mm_keeper.h>
+ 
+ #include "../common/vfm/vfm.h"
+ #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
+@@ -1025,6 +1026,11 @@
+ 	return false;
+ }
+ 
++/* Preserve the complete kept DV frame across a decoder reset. */
++static bool dv_keep_last_el = true;
++module_param(dv_keep_last_el, bool, 0644);
++MODULE_PARM_DESC(dv_keep_last_el, "Keep locked DV EL together with BL during decoder reset");
++
+ static void video_vf_unreg_provider(void)
+ {
+ 	ulong flags;
+@@ -1141,6 +1147,8 @@
+ 		need_disable_vd[1] = true;
+ 	if (is_amdv_enable()) {
+ 		if (cur_dispbuf2 == &vf_local2) {
++			if (dv_keep_last_el)
++				el_vf = &vf_local2;
+ 			cur_dispbuf2 = NULL;
+ 		} else if (cur_dispbuf2) {
+ 			vf_local2 = *cur_dispbuf2;
+@@ -1232,6 +1240,18 @@
+ 	if (cur_dispbuf[0])
+ 		keeped = vf_keep_current
+ 			(cur_dispbuf[0], el_vf);
++
++	/* The keeper pins both compressed body/header allocations.  Leave
++	 * their display pairing intact until a new BL/EL pair is toggled.
++	 */
++	if (dv_keep_last_el && el_vf && el_vf->mem_handle &&
++	    codec_mm_keeper_mem_is_pinned(el_vf->mem_handle) &&
++	    (!el_vf->mem_head_handle || codec_mm_keeper_mem_is_pinned(el_vf->mem_head_handle)) &&
++	    keeped > 0 && !(blackout[0] | force_blackout)) {
++		cur_dispbuf2 = el_vf;
++		need_disable_vd[1] = false;
++		pr_info("DV reset keeper: retain BL and EL display pair\n");
++	}
+ 
+ 	pr_info("%s: vd1 used: %s, vd2 used: %s, vd3 used: %s, keep_ret:%d, black_out:%d, cur_dispbuf:%p\n",
+ 		__func__,
+@@ -4002,6 +4022,16 @@
+ 				}
+ 			}
+ #endif
++#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
++			if (vf && amdv_el_frame_is_bad(vf)) {
++				amdv_update_metadata(vf, VD1_PATH, true);
++				if (amvideo_vf_put(vf) < 0)
++					check_dispbuf(0, vf, true);
++				pr_info_ratelimited("DV seek pair drop: retain previous display\n");
++				vf = amvideo_vf_peek();
++				continue;
++			}
++#endif
+ 			path0_new_frame = vsync_toggle_frame(vf, __LINE__);
+ 			/* The v4l2 capture needs a empty vframe to flush */
+ 			if (has_receive_dummy_vframe())
+@@ -4132,6 +4162,16 @@
+ 							       __LINE__);
+ 						break;
+ 					}
++#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
++					if (vf && amdv_el_frame_is_bad(vf)) {
++						amdv_update_metadata(vf, VD1_PATH, true);
++						if (amvideo_vf_put(vf) < 0)
++							check_dispbuf(0, vf, true);
++						pr_info_ratelimited("DV seek pair drop: retain previous display\n");
++						vf = amvideo_vf_peek();
++						continue;
++					}
++#endif
+ 					path0_new_frame = vsync_toggle_frame(vf, __LINE__);
+ #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
+ 					if (vd_path_id[0] == VFM_PATH_AMVIDEO ||
+--- a/drivers/media/common/codec_mm/codec_mm_keeper.c
++++ b/drivers/media/common/codec_mm/codec_mm_keeper.c
+@@ -46,6 +46,26 @@
+ 	return &codec_keeper_mgr_private;
+ }
+ 
++/* Unlike is_codec_mm_kept(), this also accepts a scatter handle. */
++int codec_mm_keeper_mem_is_pinned(void *mem_handle)
++{
++	struct codec_mm_keeper_mgr *mgr = get_codec_mm_keeper_mgr();
++	unsigned long flags;
++	int i, found = 0;
++
++	if (!mem_handle)
++		return 0;
++	spin_lock_irqsave(&mgr->lock, flags);
++	for (i = 0; i < MAX_KEEP_FRAME; i++) {
++		if (mgr->keep_list[i].handle == mem_handle) {
++			found = 1;
++			break;
++		}
++	}
++	spin_unlock_irqrestore(&mgr->lock, flags);
++	return found;
++}
++
+ int is_codec_mm_kept(void *mem_handle)
+ {
+ 	return codec_mm_has_owner(mem_handle, KEEP_NAME);
+--- a/include/linux/amlogic/media/codec_mm/codec_mm_keeper.h
++++ b/include/linux/amlogic/media/codec_mm/codec_mm_keeper.h
+@@ -18,6 +18,7 @@
+ int codec_mm_keeper_mask_keep_mem(void *mem_handle, int type);
+ 
+ int is_codec_mm_kept(void *mem_handle);
++int codec_mm_keeper_mem_is_pinned(void *mem_handle);
+ /*
+  *can call in irq
+  */
+--- a/drivers/media/enhancement/amdolby_vision/amdv.c
++++ b/drivers/media/enhancement/amdolby_vision/amdv.c
+@@ -4980,6 +4980,22 @@
+ 	return false;
+ }
+ EXPORT_SYMBOL(is_dovi_dual_layer_frame);
++
++static bool dv_drop_error_pairs = true;
++module_param(dv_drop_error_pairs, bool, 0644);
++MODULE_PARM_DESC(dv_drop_error_pairs, "Drop DV frame pairs with invalid EL before display");
++
++bool amdv_el_frame_is_bad(struct vframe_s *vf)
++{
++	struct vframe_s *el;
++
++	if (!dv_drop_error_pairs || !is_dovi_dual_layer_frame(vf))
++		return false;
++	el = dvel_vf_peek();
++	return el && (el->flag & VFRAME_FLAG_ERROR_RECOVERY);
++}
++EXPORT_SYMBOL(amdv_el_frame_is_bad);
++
+ 
+ int amdv_check_mvc(struct vframe_s *vf)
+ {
+--- a/include/linux/amlogic/media/amdolbyvision/dolby_vision.h
++++ b/include/linux/amlogic/media/amdolbyvision/dolby_vision.h
+@@ -210,6 +210,7 @@
+ int get_amdv_src_format(enum vd_path_e vd_path);
+ bool is_amdv_el_disable(void);
+ bool is_dovi_dual_layer_frame(struct vframe_s *vf);
++bool amdv_el_frame_is_bad(struct vframe_s *vf);
+ void amdv_set_provider(char *prov_name, enum vd_path_e vd_layer);
+ int amdv_check_mvc(struct vframe_s *vf);
+ bool for_amdv_video_effect(void);
+--- a/drivers/media/video_sink/video_func.c
++++ b/drivers/media/video_sink/video_func.c
+@@ -3254,6 +3254,16 @@
+ 			vf = video_vf_get(path_index);
+ 			if (vf) {
+ 				video_get_vf_cnt[path_index]++;
++#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
++				if (amdv_el_frame_is_bad(vf)) {
++					amdv_update_metadata(vf, path_index, true);
++					if (video_vf_put(path_index, vf) < 0)
++						check_dispbuf(path_index, vf, true);
++					pr_info_ratelimited("DV seek pair drop: retain previous display\n");
++					vf = video_vf_peek(path_index);
++					continue;
++				}
++#endif
+ 				path_new_frame = pipx_toggle_frame(path_index, vf);
+ #ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
+ 				if (vd1_path_id == VFM_PATH_PIP || is_multi_dv_mode() ||
+--- a/drivers/media/video_sink/video_receiver.c
++++ b/drivers/media/video_sink/video_receiver.c
+@@ -691,6 +691,17 @@
+ 					}
+ 				}
+ #endif
++#ifdef CONFIG_AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
++				if (amdv_el_frame_is_bad(vf)) {
++					enum vd_path_e drop_path =
++						glayer_info[0].display_path_id == ins->path_id ? VD1_PATH : VD2_PATH;
++					amdv_update_metadata(vf, drop_path, true);
++					common_vf_put(ins, vf);
++					pr_info_ratelimited("DV seek pair drop: retain previous display\n");
++					vf = common_vf_peek(ins);
++					continue;
++				}
++#endif
+ 				ret = common_toggle_frame(ins, vf);
+ 				if (ret < 0)
+ 					return NULL;
+--- /dev/null
++++ b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
+@@ -0,0 +1,12 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++// S905X2 / u212-compatible, 2 GiB DDR3, RTL8822CS SDIO.
++#include "g12a_s905x2_2g.dts"
++/ {
++    model = "S905X2 u212-compatible 2GB RTL8822CS";
++    amlogic-dt-id = "g12a_s905x2_u212_2g_rtl8822cs";
++};
++&{/vpu} { clk_level = <8>; };
++&{/reserved-memory/linux,meson-fb} {
++    reg = <0x0 0x7f800000 0x0 0x800000>;
++};
++&{/sd2@ffe05000} { sd-uhs-sdr104; };
+--- a/arch/arm64/boot/dts/amlogic/Makefile
++++ b/arch/arm64/boot/dts/amlogic/Makefile
+@@ -1,3 +1,4 @@
++dtb-y += g12a_s905x2_u212_2g_rtl8822cs.dtb
+ # SPDX-License-Identifier: GPL-2.0
+ dtb-y += g12a_s905x2_2g.dtb
+ dtb-y += g12a_s905x2_2g_1gbit.dtb

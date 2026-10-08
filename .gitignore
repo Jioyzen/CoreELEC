@@ -41,3 +41,7 @@ tools/mkpkg/*.git
 
 # ignore old linux configs
 projects/**/*.old
+
+# Python build helper caches
+__pycache__/
+*.pyc

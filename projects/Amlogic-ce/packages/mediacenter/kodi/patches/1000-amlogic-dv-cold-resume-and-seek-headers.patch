@@ -1,0 +1,302 @@
+--- a/xbmc/cores/VideoPlayer/DVDCodecs/Video/amlogic/AMLCodec.cpp
++++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/amlogic/AMLCodec.cpp
+@@ -8,6 +8,7 @@
+ 
+ 
+ #include "AMLCodec.h"
++#include "AMLDVStreamGuard.h"
+ #include "DynamicDll.h"
+ 
+ #include "cores/VideoPlayer/Interface/TimingConstants.h"
+@@ -210,13 +211,13 @@
+   // libamcodec is static linked into libamcodec.so
+   DECLARE_DLL_WRAPPER(DllLibAmCodec, "libamcodec.so")
+ 
+-  DEFINE_METHOD1(int, codec_init,               (codec_para_t *p1))
+-  DEFINE_METHOD1(int, codec_close,              (codec_para_t *p1))
+-  DEFINE_METHOD1(int, codec_reset,              (codec_para_t *p1))
++  DEFINE_METHOD_LINKAGE_FP(int, __cdecl, codec_init, (codec_para_t *p1))
++  DEFINE_METHOD_LINKAGE_FP(int, __cdecl, codec_close, (codec_para_t *p1))
++  DEFINE_METHOD_LINKAGE_FP(int, __cdecl, codec_reset, (codec_para_t *p1))
+   DEFINE_METHOD1(int, codec_pause,              (codec_para_t *p1))
+   DEFINE_METHOD1(int, codec_resume,             (codec_para_t *p1))
+-  DEFINE_METHOD3(int, codec_write,              (codec_para_t *p1, void *p2, int p3))
+-  DEFINE_METHOD2(int, codec_checkin_pts_us64,   (codec_para_t *p1, unsigned long long p2))
++  DEFINE_METHOD_LINKAGE_FP(int, __cdecl, codec_write, (codec_para_t *p1, void *p2, int p3))
++  DEFINE_METHOD_LINKAGE_FP(int, __cdecl, codec_checkin_pts_us64, (codec_para_t *p1, unsigned long long p2))
+   DEFINE_METHOD1(int, codec_checkin_hdr10p_data,(codec_para_t *p1))
+   DEFINE_METHOD2(int, codec_get_vbuf_state,     (codec_para_t *p1, struct buf_status * p2))
+   DEFINE_METHOD2(int, codec_get_vdec_state,     (codec_para_t *p1, struct vdec_status * p2))
+@@ -232,6 +233,21 @@
+   DEFINE_METHOD2(int, codec_set_video_delay_limited_ms, (codec_para_t *p1, int p2))
+   DEFINE_METHOD2(int, codec_get_video_delay_limited_ms, (codec_para_t *p1, int *p2))
+   DEFINE_METHOD2(int, codec_get_video_cur_delay_ms, (codec_para_t *p1, int *p2))
++
++private:
++  AMLDVStreamGuard m_dvGuard;
++public:
++  int codec_init(codec_para_t *p) override
++  {
++    return m_dvGuard.Init(p, m_codec_init, m_codec_write, m_codec_reset, m_codec_checkin_pts_us64);
++  }
++  int codec_close(codec_para_t *p) override { return m_dvGuard.Close(p, m_codec_close); }
++  int codec_reset(codec_para_t *p) override { return m_dvGuard.Reset(p); }
++  int codec_write(codec_para_t *p, void *b, int n) override { return m_dvGuard.Write(p, b, n); }
++  int codec_checkin_pts_us64(codec_para_t *p, unsigned long long pts) override
++  {
++    return m_dvGuard.CheckinPts(p, pts);
++  }
+ 
+   BEGIN_METHOD_RESOLVE()
+     RESOLVE_METHOD(codec_init)
+--- /dev/null
++++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/amlogic/AMLDVStreamGuard.h
+@@ -0,0 +1,248 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later
++ * Restore DV enhancement-layer headers before decoder input, including cold
++ * resume. Replay byte writes and PTS checkins together; never mix movie caches.
++ */
++#pragma once
++#include <amcodec/codec_type.h>
++#include <pthread.h>
++#include <stdio.h>
++#include <string.h>
++#include <stdlib.h>
++#include <errno.h>
++#include <time.h>
++
++class AMLDVStreamGuard
++{
++public:
++    AMLDVStreamGuard() = default;
++    AMLDVStreamGuard(const AMLDVStreamGuard&) = delete;
++    AMLDVStreamGuard& operator=(const AMLDVStreamGuard&) = delete;
++    ~AMLDVStreamGuard() { clear_queue(); pthread_mutex_destroy(&mutex); }
++
++    int Init(codec_para_t *codec,
++             int (*init)(codec_para_t *), int (*write)(codec_para_t *, void *, int),
++             int (*reset)(codec_para_t *), int (*pts)(codec_para_t *, unsigned long long))
++    {
++        original_init=init; original_write=write; original_reset=reset; original_pts=pts;
++        enabled=codec->has_video && codec->dv_enable && codec->video_type == VFORMAT_HEVC;
++        return wrapped_init(codec);
++    }
++    int Close(codec_para_t *codec, int (*close)(codec_para_t *))
++    {
++        int result=close(codec);
++        pthread_mutex_lock(&mutex);
++        clear_queue(); enabled=false; cold_arm=0; active_codec=nullptr;
++        memset(cachelen,0,sizeof(cachelen)); injectionlen=injectionoff=0;
++        pthread_mutex_unlock(&mutex);
++        return result;
++    }
++    int Reset(codec_para_t *codec) { return wrapped_reset(codec); }
++    int Write(codec_para_t *codec, void *buffer, int length) { return wrapped_write(codec,buffer,length); }
++    int CheckinPts(codec_para_t *codec, unsigned long long pts) { return wrapped_pts(codec,pts); }
++
++private:
++    int (*original_write)(codec_para_t *, void *, int) = nullptr;
++    int (*original_reset)(codec_para_t *) = nullptr;
++    int (*original_init)(codec_para_t *) = nullptr;
++    int (*original_pts)(codec_para_t *, unsigned long long) = nullptr;
++    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
++    unsigned char cache[3][512]{}, nal[512]{}, injection[1600]{};
++    size_t cachelen[3]{}, nallen=0, injectionlen=0, injectionoff=0;
++    unsigned zeroes=0;
++    int have_nal=0;
++    bool enabled=false;
++    codec_para_t *active_codec=nullptr;
++    struct event { event *next; unsigned char *data; size_t size,off; unsigned long long pts; };
++    event *head=nullptr,*tail=nullptr;
++    size_t queued_bytes=0;
++    int cold_arm=0,collecting=0,draining=0;
++    struct timespec started{};
++
++void clear_queue(void) {
++    while(head) { struct event *e=head;head=e->next;free(e->data);free(e); }
++    tail=NULL;queued_bytes=0;collecting=draining=0;
++}
++void prepare_injection(void) {
++    static const unsigned char sc[]={0,0,0,1};
++    injectionoff=injectionlen=0;
++    for(unsigned i=0;i<3;i++) {
++        memcpy(injection+injectionlen,sc,4);injectionlen+=4;
++        memcpy(injection+injectionlen,cache[i],cachelen[i]);injectionlen+=cachelen[i];
++    }
++}
++int append_event(const void *data,int size,unsigned long long pts) {
++    struct event *e=static_cast<event *>(calloc(1,sizeof(event)));if(!e)return -1;
++    if(data) { e->data=static_cast<unsigned char *>(malloc(size));if(!e->data){free(e);return -1;} memcpy(e->data,data,size);e->size=size; }
++    e->pts=pts;
++    if(tail)tail->next=e;else head=e;tail=e;queued_bytes+=e->size;
++    return 0;
++}
++int wrapped_pts(codec_para_t *codec,unsigned long long pts) {
++    pthread_mutex_lock(&mutex);
++    if(codec==active_codec && (collecting||draining)) {
++        int r=append_event(NULL,0,pts);pthread_mutex_unlock(&mutex);
++        if(r<0) errno=ENOMEM;
++        return r;
++    }
++    pthread_mutex_unlock(&mutex);return original_pts(codec,pts);
++}
++
++
++void finish_nal(void)
++{
++    if (nallen >= zeroes + 4 && nallen < sizeof(nal)) {
++        size_t length = nallen - zeroes;
++        unsigned outer = (nal[0] >> 1) & 63;
++        unsigned inner = (nal[2] >> 1) & 63;
++        if (outer == 63 && inner >= 32 && inner <= 34) {
++            unsigned slot = inner - 32;
++            if (cachelen[slot] != length || memcmp(cache[slot], nal, length)) {
++                memcpy(cache[slot], nal, length);
++                cachelen[slot] = length;
++                fprintf(stderr, "amcodec_dv: cached EL parameter=%u bytes=%zu\n", inner, length);
++            }
++        }
++    }
++}
++
++void parse_input(const unsigned char *bytes, size_t length)
++{
++    for (size_t i = 0; i < length; ++i) {
++        unsigned char b = bytes[i];
++        if (b == 1 && zeroes >= 2) {
++            if (have_nal) finish_nal();
++            nallen = 0; have_nal = 1; zeroes = 0;
++            continue;
++        }
++        if (have_nal) {
++            if (nallen < sizeof(nal)) nal[nallen] = b;
++            if (nallen < sizeof(nal)) ++nallen;
++        }
++        if (b == 0) {if (zeroes < 8) ++zeroes;} else zeroes = 0;
++    }
++}
++
++int wrapped_init(codec_para_t *codec)
++{
++    pthread_mutex_lock(&mutex);
++    clear_queue(); active_codec=codec; cold_arm=enabled;
++    memset(cachelen, 0, sizeof(cachelen));
++    injectionoff = injectionlen = nallen = zeroes = 0; have_nal = 0;
++    pthread_mutex_unlock(&mutex);
++    return original_init(codec);
++}
++
++
++int wrapped_reset(codec_para_t *codec)
++{
++    int result = original_reset(codec);
++    pthread_mutex_lock(&mutex);
++    clear_queue(); cold_arm=0;
++    nallen = zeroes = 0; have_nal = 0;
++    injectionoff = injectionlen = 0;
++    if (result == 0 && enabled && cachelen[0] && cachelen[1] && cachelen[2]) {
++        prepare_injection();
++        fprintf(stderr, "amcodec_dv: restore EL parameters %zu bytes\n", injectionlen);
++    }
++    pthread_mutex_unlock(&mutex);
++    return result;
++}
++
++void record_input(void *buffer, int bytes)
++{
++    if (enabled && bytes > 0) parse_input(static_cast<const unsigned char *>(buffer), bytes);
++}
++
++int write_locked(codec_para_t *codec, void *buffer, int length)
++{
++    unsigned char *bytes = static_cast<unsigned char *>(buffer);
++    int prefix = 0;
++    int found = 0;
++    if (injectionoff < injectionlen) {
++        for (int i = 0; i + 4 < length; ++i) {
++            if (bytes[i] == 0 && bytes[i+1] == 0 && bytes[i+2] == 1 &&
++                ((bytes[i+3] >> 1) & 63) == 63) {
++                prefix = i > 0 && bytes[i-1] == 0 ? i-1 : i;
++                found = 1;
++                break;
++            }
++        }
++    }
++    int consumed = 0;
++    if (found) {
++        if (prefix) {
++            int n = original_write(codec, bytes, prefix);
++            record_input(bytes, n);
++            if (n < prefix) return n;
++            consumed = prefix;
++        }
++        while (injectionoff < injectionlen) {
++            int n = original_write(codec, injection + injectionoff,
++                                   (int)(injectionlen - injectionoff));
++            if (n <= 0) {
++                if (n == 0) errno = EAGAIN;
++                return consumed ? consumed : -1;
++            }
++            record_input(injection + injectionoff, n);
++            injectionoff += (size_t)n;
++        }
++    }
++    int result = original_write(codec, bytes + consumed, length - consumed);
++    int saved_errno = errno;
++    record_input(bytes + consumed, result);
++    errno = saved_errno;
++    return result > 0 ? consumed + result : (consumed ? consumed : result);
++}
++
++
++/* Replay byte writes and timestamp checkins in their original order. */
++int flush_queue(codec_para_t *codec) {
++    while(head) {
++        struct event *e=head;int n;
++        if(e->data) {
++            n=write_locked(codec,e->data+e->off,(int)(e->size-e->off));
++            if(n<=0){if(n==0)errno=EAGAIN;return -1;}
++            e->off+=n;if(e->off<e->size)continue;
++        } else { n=original_pts(codec,e->pts);if(n<0)return -1; }
++        queued_bytes-=e->size;head=e->next;free(e->data);free(e);
++    }
++    tail=NULL;draining=0;return 0;
++}
++int wrapped_write(codec_para_t *codec,void *buffer,int length) {
++    if(length<=0)return original_write(codec,buffer,length);
++    if (!enabled) return original_write(codec,buffer,length);
++    pthread_mutex_lock(&mutex);
++    if(codec==active_codec && draining && flush_queue(codec)<0) {
++        int err=errno;pthread_mutex_unlock(&mutex);errno=err;return -1;
++    }
++    if(codec==active_codec && cold_arm) {
++        const unsigned char *b=static_cast<const unsigned char *>(buffer);int dual=0,vcl=0;
++        for(int i=0;i+4<length;i++)if(!b[i]&&!b[i+1]&&b[i+2]==1) {
++            unsigned t=(b[i+3]>>1)&63;dual|=(t==63);vcl|=(t<32);
++        }
++        if(dual) {
++            cold_arm=0;collecting=1;clock_gettime(CLOCK_MONOTONIC,&started);
++            fprintf(stderr,"amcodec_dv: collect cold dual-layer input\n");
++        } else if(vcl) cold_arm=0;
++    }
++    if(codec==active_codec && collecting) {
++        if(append_event(buffer,length,0)<0) {
++            pthread_mutex_unlock(&mutex);errno=ENOMEM;return -1;
++        }
++        parse_input(static_cast<const unsigned char *>(buffer),length);
++        struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);
++        int complete=cachelen[0]&&cachelen[1]&&cachelen[2];
++        if(complete || queued_bytes>=32*1024*1024 || now.tv_sec-started.tv_sec>=8) {
++            if(complete)prepare_injection();
++            fprintf(stderr,"amcodec_dv: replay bytes=%zu EL_headers=%d injection=%zu\n",queued_bytes,complete,injectionlen);
++            collecting=0;draining=1;
++            /* Data already copied: report consumption even if hardware is full. */
++            flush_queue(codec);
++        }
++        pthread_mutex_unlock(&mutex);return length;
++    }
++    int r=write_locked(codec,buffer,length),err=errno;
++    pthread_mutex_unlock(&mutex);errno=err;return r;
++}
++
++};

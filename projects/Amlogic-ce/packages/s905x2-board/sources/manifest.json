@@ -1,0 +1,19 @@
+{
+  "board": "S905X2 G12A u212-compatible / 2GiB DDR3 / RTL8822CS",
+  "dt_id": "g12a_s905x2_u212_2g_rtl8822cs",
+  "baseline_coreelec": "5b2970d67edf13285386d9588abdb40a5fca8bd6",
+  "baseline_kernel": "968a93c28223f72ff94e706eabb0277292bac878",
+  "baseline_common_drivers": "d9ec1b3b91822e03fdbeb09305aa0f63fbbb4c17",
+  "baseline_media_modules": "c15aebb1ac93028d0aceadf8f35dda2204d33424",
+  "baseline_kodi": "133818b9b80a1e9d57d3fc72520e409f91cf3543",
+  "dovi_sha256": "f6c26659a255447685ceac9441e399c999b1fae9c6435c48d70e14a14dd7f8f7",
+  "fixes": [
+    "VPU 666.7MHz",
+    "U-Boot framebuffer handoff",
+    "SDIO SDR104",
+    "RTL8822CS vendor driver NAPI/GRO",
+    "DV BL/EL pair recovery",
+    "DV cold resume EL parameter and PTS replay"
+  ],
+  "cec": "upstream defaults"
+}

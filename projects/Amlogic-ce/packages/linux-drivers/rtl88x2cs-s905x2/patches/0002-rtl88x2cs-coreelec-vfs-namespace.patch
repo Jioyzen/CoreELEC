@@ -1,0 +1,11 @@
+--- a/os_dep/linux/sdio_intf.c
++++ b/os_dep/linux/sdio_intf.c
+@@ -1388,3 +1388,8 @@
+ 
+ module_init(rtw_drv_entry);
+ module_exit(rtw_drv_halt);
++
++/* CoreELEC 5.15 namespaces the VFS helpers used by vendor file-IO wrappers. */
++#ifdef RTW_CE_CFG80211_BACKPORT
++MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++#endif

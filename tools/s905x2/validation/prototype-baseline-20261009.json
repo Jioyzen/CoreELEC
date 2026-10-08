@@ -1,0 +1,35 @@
+{
+  "baseline_kind": "runtime prototype before full source-build migration",
+  "kernel_sha256": "92ef04281e3a769276bb3c4b6b84305861ed099d117ae6dcf7f2d31004e424a0",
+  "cold_resume": [
+    {
+      "seconds": 0,
+      "BL_error_marks": 0,
+      "EL_error_marks": 0
+    },
+    {
+      "seconds": 1318,
+      "BL_error_marks": 0,
+      "EL_error_marks": 22
+    },
+    {
+      "seconds": 2447,
+      "BL_error_marks": 0,
+      "EL_error_marks": 3
+    },
+    {
+      "seconds": 4185,
+      "BL_error_marks": 0,
+      "EL_error_marks": 20
+    }
+  ],
+  "manual_feedback": "两次续播都正常",
+  "seek_targets_seconds": [
+    1318,
+    1580,
+    1120,
+    2357
+  ],
+  "source_image_validation": "pending",
+  "seek_BL_error_marks": 0
+}

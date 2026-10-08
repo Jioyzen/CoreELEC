@@ -66,3 +66,6 @@ if [ -n "${DTBIMG}" -a "${SUBDEVICE}" = "Generic" ]; then
     echo "image: can't include \"${DTBIMG}\", file doesn't exist"
   fi
 fi
+
+# The board package also provides a boot-partition copy for fresh installs.
+mcopy_file_exist "${RELEASE_DIR}/3rdparty/bootloader/dovi.ko" "::/dovi.ko"

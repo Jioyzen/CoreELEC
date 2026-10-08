@@ -1,0 +1,73 @@
+name: S905X2 weekly image
+on:
+  schedule:
+    # Sunday 03:00 Asia/Shanghai (Saturday 19:00 UTC).
+    - cron: '0 19 * * 6'
+  workflow_dispatch:
+    inputs:
+      sync_upstream:
+        description: Merge the latest official coreelec-22 before building
+        type: boolean
+        default: false
+      publish:
+        description: Publish image and upgrade package to Releases
+        type: boolean
+        default: true
+permissions:
+  contents: write
+concurrency:
+  group: s905x2-image
+  cancel-in-progress: false
+jobs:
+  build:
+    # Registered persistent runner; retains the CoreELEC toolchain and sources.
+    runs-on: [self-hosted, Linux, X64, coreelec-s905x2]
+    timeout-minutes: 1440
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: s905x2-no-fixes
+          fetch-depth: 0
+          clean: false
+      - name: Synchronize upstream
+        id: sync
+        env:
+          SYNC_UPSTREAM: ${{ github.event_name == 'schedule' || inputs.sync_upstream }}
+        run: |
+          set -euo pipefail
+          git config user.name 'S905X2 build bot'
+          git config user.email 's905x2-build@users.noreply.github.com'
+          before=$(git rev-parse HEAD)
+          if [ "$SYNC_UPSTREAM" = true ]; then
+            git fetch https://github.com/CoreELEC/CoreELEC.git coreelec-22
+            git merge --no-edit FETCH_HEAD
+          fi
+          ./tools/s905x2/test.sh
+          if [ "$(git rev-parse HEAD)" != "$before" ]; then
+            git push origin HEAD:s905x2-no-fixes
+          elif [ "${{ github.event_name }}" = schedule ]; then
+            echo 'build=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'build=true' >> "$GITHUB_OUTPUT"
+      - name: Build and validate image
+        if: steps.sync.outputs.build == 'true'
+        run: ./tools/s905x2/build.sh
+      - name: Preserve build artifacts
+        if: steps.sync.outputs.build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: s905x2-image
+          path: target/s905x2-release/*
+          retention-days: 14
+      - name: Publish release
+        if: steps.sync.outputs.build == 'true' && (github.event_name == 'schedule' || inputs.publish)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$(python3 -c "import json; print(json.load(open('target/s905x2-release/build-manifest.json'))['release_tag'])")
+          gh release create "$tag" target/s905x2-release/* \
+            --repo "${{ github.repository }}" --target "$(git rev-parse HEAD)" \
+            --title "S905X2 CoreELEC NO $tag" --prerelease \
+            --notes-file target/s905x2-release/RELEASE-NOTES.md

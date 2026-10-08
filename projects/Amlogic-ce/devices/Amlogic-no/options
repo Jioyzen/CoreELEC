@@ -152,3 +152,11 @@
 
   # TEE supported SoC
     TEE_SOC="S928X A311D2 S905W2 S905X4 S905Y4 S905X5M S905X5 S905X5L S905Y5 S905A"
+
+# Dedicated build profile; other upstream board profiles remain unchanged.
+if [ "${S905X2_BOARD}" = "yes" ]; then
+  SUBDEVICES=""
+  DTBIMG="g12a_s905x2_u212_2g_rtl8822cs.dtb"
+  ADDITIONAL_DRIVERS+=" rtl88x2cs-s905x2"
+  ADDITIONAL_PACKAGES+=" s905x2-board"
+fi

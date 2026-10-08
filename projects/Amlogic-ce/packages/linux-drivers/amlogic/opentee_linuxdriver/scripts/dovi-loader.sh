@@ -59,6 +59,7 @@ load_dovi() {
   for DOVI_KO_STORAGE in /storage/.config/dovi.ko \
                          /flash/dovi.ko \
                          /storage/dovi.ko \
+                         /usr/lib/coreelec/dovi.ko \
                          ; do
     if [ -f ${DOVI_KO_STORAGE} ]; then
       message "loading dovi module from ce partition"

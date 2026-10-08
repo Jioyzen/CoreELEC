@@ -1,5 +1,8 @@
 # CoreELEC
 
+本 fork 的 S905X2 专用镜像、修复原理和构建说明见 [S905X2.md](S905X2.md)。
+
+
 CoreELEC is a 'Just enough OS' Linux distribution for running the award-winning [Kodi](https://kodi.tv) software on popular low-cost hardware. CoreELEC is a minor fork of [LibreELEC](https://libreelec.tv), it's built by the community for the community. [CoreELEC website](http://coreelec.org).
 
 **Documentation**

@@ -1,0 +1,101 @@
+--- a/os_dep/linux/ioctl_cfg80211.c
++++ b/os_dep/linux/ioctl_cfg80211.c
+@@ -456,7 +456,7 @@
+ 
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0))
+ 	if (started) {
+-		#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)))
++		#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)))
+ 		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false, 0);
+ 		#elif (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+ 		cfg80211_ch_switch_started_notify(adapter->pnetdev, &chdef, 0, 0, false);
+@@ -472,7 +472,7 @@
+ 	if (!rtw_cfg80211_allow_ch_switch_notify(adapter))
+ 		goto exit;
+ 
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0) && (LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)))
+ 	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0, 0);
+ #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 2))
+ 	cfg80211_ch_switch_notify(adapter->pnetdev, &chdef, 0);
+@@ -1155,7 +1155,7 @@
+ 		#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+ 		roam_info = kzalloc(sizeof(*roam_info), GFP_ATOMIC);
+ 		if (roam_info) {
+-			#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
++			#if !defined(RTW_CE_CFG80211_BACKPORT) && LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+ 			roam_info->channel = notify_channel;
+ 			roam_info->bssid = cur_network->network.MacAddress;
+ 			#else
+@@ -1930,7 +1930,7 @@
+ #else
+ 	struct net_device *ndev
+ #endif
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+ 	, int link_id
+ #endif
+ 	, u8 key_index
+@@ -2108,7 +2108,7 @@
+ #else
+ 	struct net_device *ndev
+ #endif
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+ 	, int link_id
+ #endif
+ 	, u8 keyid
+@@ -2312,7 +2312,7 @@
+ #else
+ 				struct net_device *ndev,
+ #endif
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+ 				int link_id,
+ #endif
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
+@@ -2343,7 +2343,7 @@
+ 
+ static int cfg80211_rtw_set_default_key(struct wiphy *wiphy,
+ 	struct net_device *ndev
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+ 	, int link_id
+ #endif
+ 	, u8 key_index
+@@ -2400,7 +2400,7 @@
+ #else
+ 	struct net_device *ndev
+ #endif
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+ 	, int link_id
+ #endif
+ 	, u8 key_index)
+@@ -5662,7 +5662,7 @@
+ 	return ret;
+ }
+ 
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,19, 2))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(5,19, 2))
+ static int cfg80211_rtw_stop_ap(struct wiphy *wiphy, struct net_device *ndev, unsigned int link_id)
+ #else
+ static int cfg80211_rtw_stop_ap(struct wiphy *wiphy, struct net_device *ndev)
+@@ -6668,7 +6668,7 @@
+ #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 8, 0))
+ static int cfg80211_rtw_get_channel(struct wiphy *wiphy,
+ 	struct wireless_dev *wdev,
+-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,19, 2))
++#if defined(RTW_CE_CFG80211_BACKPORT) || (LINUX_VERSION_CODE >= KERNEL_VERSION(5,19, 2))
+ 	unsigned int link_id,
+ #endif
+ 	struct cfg80211_chan_def *chandef)
+@@ -10846,7 +10846,7 @@
+ 	rtw_cfg80211_indicate_scan_done(adapter, _TRUE);
+ 
+ 	#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)) || defined(COMPAT_KERNEL_RELEASE)
+-	#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 2)
++	#if !defined(RTW_CE_CFG80211_BACKPORT) && LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 2)
+ 	if (wdev->current_bss) {
+ 	#else
+ 	if (wdev->connected) {
