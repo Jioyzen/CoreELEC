@@ -1,5 +1,5 @@
---- a/xbmc/cores/VideoPlayer/DVDCodecs/Video/amlogic/AMLCodec.cpp
-+++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/amlogic/AMLCodec.cpp
+--- a/xbmc/cores/VideoPlayer/DVDCodecs/Video/AMLCodec.cpp
++++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/AMLCodec.cpp
 @@ -8,6 +8,7 @@
  
  
@@ -50,7 +50,7 @@
    BEGIN_METHOD_RESOLVE()
      RESOLVE_METHOD(codec_init)
 --- /dev/null
-+++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/amlogic/AMLDVStreamGuard.h
++++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/AMLDVStreamGuard.h
 @@ -0,0 +1,248 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later
 + * Restore DV enhancement-layer headers before decoder input, including cold

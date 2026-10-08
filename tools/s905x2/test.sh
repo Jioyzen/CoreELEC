@@ -10,7 +10,7 @@ PY' EXIT
 python3 - "$S905X2_TEST_TMP" <<'PY'
 import sys,pathlib
 p=pathlib.Path('projects/Amlogic-ce/packages/mediacenter/kodi/patches/1000-amlogic-dv-cold-resume-and-seek-headers.patch')
-s=p.read_text().split('+++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/amlogic/AMLDVStreamGuard.h\n',1)[1]
+s=p.read_text().split('+++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/AMLDVStreamGuard.h\n',1)[1]
 pathlib.Path(sys.argv[1],'AMLDVStreamGuard.h').write_text(''.join(x[1:]+'\n' for x in s.splitlines() if x.startswith('+')))
 PY
 c++ -std=c++17 -O1 -g -fsanitize=address,undefined \
