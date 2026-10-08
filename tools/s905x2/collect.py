@@ -4,6 +4,8 @@ import hashlib,json,os,pathlib,shutil,subprocess,tarfile,datetime
 root=pathlib.Path(__file__).resolve().parents[2]
 target=pathlib.Path(os.environ.get('TARGET_DIR',root/'target'))
 build=pathlib.Path(os.environ.get('BUILD_DIR',root))/'build.CoreELEC-Amlogic-no.aarch64-22'
+# CoreELEC builds mtools itself, so verification need not depend on host mtools.
+mcopy=shutil.which('mcopy') or str(build/'toolchain/bin/mcopy')
 system=build/'image/system'
 out=target/'s905x2-release'
 if out.exists():
@@ -52,7 +54,7 @@ with tempfile.TemporaryDirectory(prefix='ce-image-check-') as tmp:
   sector=f.read(512);start=struct.unpack_from('<I',sector,446+8)[0]*512
  for name,expected in [('dtb.img',dtb),('dovi.ko',system/'usr/lib/coreelec/dovi.ko')]:
   dest=pathlib.Path(tmp)/name
-  subprocess.run(['mcopy','-i',str(raw)+'@@'+str(start),'::/'+name,str(dest)],check=True)
+  subprocess.run([mcopy,'-i',str(raw)+'@@'+str(start),'::/'+name,str(dest)],check=True)
   assert sha(dest)==sha(expected),name+' boot partition mismatch'
 for label,path in [('linux','projects/Amlogic-ce/packages/linux/package.mk'),('common_drivers','projects/Amlogic-ce/packages/linux-drivers/amlogic/common_drivers/package.mk'),('media_modules','projects/Amlogic-ce/packages/linux-drivers/amlogic/media_modules-aml/package.mk'),('kodi','projects/Amlogic-ce/packages/mediacenter/kodi/package.mk')]:
  import re
