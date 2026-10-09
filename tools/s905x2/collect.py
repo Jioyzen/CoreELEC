@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate compiled board artifacts and collect a flash image and update tar."""
 import hashlib,json,os,pathlib,shutil,subprocess,tarfile,datetime
+from release_metadata import write_metadata
 root=pathlib.Path(__file__).resolve().parents[2]
 target=pathlib.Path(os.environ.get('TARGET_DIR',root/'target'))
 build=pathlib.Path(os.environ.get('BUILD_DIR',root))/'build.CoreELEC-Amlogic-no.aarch64-22'
@@ -31,6 +32,11 @@ assert b'amcodec_dv: collect cold dual-layer input' in kodi.read_bytes(), 'nativ
 assert b'amcodec_dv: restore EL parameters' in kodi.read_bytes(), 'native Kodi seek headers missing'
 hevc=list(system.rglob('amvdec_h265.ko'))
 assert len(hevc)==1 and b'dv_el_start_policy' in hevc[0].read_bytes(), 'native HEVC DV patch missing'
+updater=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/s905x2_updates.py'
+assert updater.exists() and b'latest/download/update.json' in updater.read_bytes(), 'native release updater missing'
+settings=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/modules/updates.py'
+assert b's905x2_updates.verify_download' in settings.read_bytes(), 'upgrade hash validation missing'
+assert b'DT_ID="g12a_s905x2_u212_2g_rtl8822cs"' in (system/'usr/share/bootloader/update.sh').read_bytes(), 'official NO migration selector missing'
 # Select this build's image/tar by shared stem, excluding previous release copies.
 images=sorted(target.glob('*Amlogic-no.aarch64*Generic.img.gz'),key=lambda p:p.stat().st_mtime)
 assert images,'image missing'
@@ -59,8 +65,10 @@ with tempfile.TemporaryDirectory(prefix='ce-image-check-') as tmp:
 for label,path in [('linux','projects/Amlogic-ce/packages/linux/package.mk'),('common_drivers','projects/Amlogic-ce/packages/linux-drivers/amlogic/common_drivers/package.mk'),('media_modules','projects/Amlogic-ce/packages/linux-drivers/amlogic/media_modules-aml/package.mk'),('kodi','projects/Amlogic-ce/packages/mediacenter/kodi/package.mk')]:
  import re
  manifest[label+'_commit']=re.search(r'^PKG_VERSION="([^"]+)"', (root/path).read_text(),re.M)[1]
+os_release = dict(line.split('=',1) for line in (system/'etc/os-release').read_text().splitlines() if '=' in line)
+manifest['version']=os_release['VERSION'].strip(chr(34))
+write_metadata(out,manifest['version'],revision,manifest['release_tag'])
 manifest['artifacts']={p.name:sha(p) for p in out.iterdir() if p.suffix in ['.gz','.tar']}
 (out/'build-manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
-(out/'RELEASE-NOTES.md').write_text('S905X2 / u212-compatible / 2GB DDR3 / RTL8822CS 专用镜像。\n\n默认修复 DTB，内置已验证 dovi.ko；包含 HDMI、Wi-Fi、DV seek 与续播修复。下载 .img.gz 刷写；.tar 用于本分支升级。CEC 保持官方默认逻辑。\n\n源码 commit：'+revision+'\n\n每周自动产物仅经过构建和结构检查；实机验证记录见仓库。\n')
 (out/'SHA256SUMS').write_text(''.join(sha(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file() and p.name!='SHA256SUMS'))
 print(out)

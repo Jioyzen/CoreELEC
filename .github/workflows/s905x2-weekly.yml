@@ -47,7 +47,7 @@ jobs:
           if [ "$(git rev-parse HEAD)" != "$before" ]; then
             git push origin HEAD:s905x2-no-fixes
           fi
-          last=$(gh api "repos/${{ github.repository }}/releases" --jq '.[0].target_commitish // ""')
+          last=$(gh api "repos/${{ github.repository }}/releases" --jq '[.[] | select(.draft == false and .prerelease == false)][0].target_commitish // ""')
           if [ "${{ github.event_name }}" = schedule ] && [ "$(git rev-parse HEAD)" = "$last" ]; then
             echo 'build=false' >> "$GITHUB_OUTPUT"
             exit 0
@@ -72,5 +72,8 @@ jobs:
           tag=$(python3 -c "import json; print(json.load(open('target/s905x2-release/build-manifest.json'))['release_tag'])")
           gh release create "$tag" target/s905x2-release/* \
             --repo "${{ github.repository }}" --target "$(git rev-parse HEAD)" \
-            --title "S905X2 CoreELEC NO $tag" --prerelease \
+            --title "S905X2 CoreELEC NO $tag" --draft \
             --notes-file target/s905x2-release/RELEASE-NOTES.md
+          # Publish only after every asset (including update.json) is uploaded.
+          gh release edit "$tag" --repo "${{ github.repository }}" \
+            --draft=false --prerelease=false --latest

@@ -79,6 +79,11 @@ for arg in $(cat /proc/cmdline); do
       esac
 
       DT_ID=$(dtname)
+      # This dedicated SYSTEM is also an entry point from official NO builds.
+      # Select its board DTB rather than keeping the old generic board ID.
+      if [ -f /usr/share/s905x2/manifest.json ]; then
+        DT_ID="g12a_s905x2_u212_2g_rtl8822cs"
+      fi
       MIGRATE_DTB=""
       if [ -n "${DT_ID}" ]; then
         SUBDEVICE="Generic"

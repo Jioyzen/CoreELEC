@@ -1,0 +1,14 @@
+{
+  "source_commit": "3db81103c888094e2c370f2b097bf6996d1b0e74",
+  "release_tag": "20261008-2126-s905x2-3db81103",
+  "validation_date": "2026-10-09",
+  "validation_method": "user flashed the Actions-built image onto spare boot media",
+  "user_feedback": "能够正常启动 hdmi花屏 wifi速度慢 seek花屏/绿线 测试都正常 全部成功修复",
+  "checks": {
+    "boot": "passed",
+    "HDMI": "passed",
+    "wifi": "passed",
+    "DV_seek": "passed"
+  },
+  "automatic_update_validation": "not present in this first image"
+}

@@ -24,6 +24,7 @@ m=json.loads((p/'manifest.json').read_text())
 assert hashlib.sha256((p/'dovi.ko').read_bytes()).hexdigest()==m['dovi_sha256']
 print('PASS: bundled dovi SHA256')
 PY
+python3 tools/s905x2/tests/test_updates.py
 bash -n projects/Amlogic-ce/packages/linux-drivers/rtl88x2cs-s905x2/package.mk \
   projects/Amlogic-ce/packages/s905x2-board/package.mk
 sh -n projects/Amlogic-ce/packages/linux-drivers/amlogic/opentee_linuxdriver/scripts/dovi-loader.sh

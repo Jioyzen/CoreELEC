@@ -9,6 +9,9 @@ PKG_SITE="https://coreelec.org"
 PKG_URL="https://github.com/CoreELEC/service.coreelec.settings/archive/${PKG_VERSION}.tar.gz"
 PKG_DEPENDS_TARGET="toolchain Python3 connman dbussy bkeymaps"
 PKG_LONGDESC="CoreELEC-settings: is a settings dialog for CoreELEC"
+if [ "${S905X2_BOARD}" = "yes" ]; then
+  PKG_NEED_UNPACK="$(get_pkg_directory s905x2-board)"
+fi
 
 PKG_MAKE_OPTS_TARGET="DISTRONAME=${DISTRONAME} \
                       ADDON_VERSION=${ADDON_VERSION} \
@@ -19,6 +22,10 @@ post_makeinstall_target() {
   cp ${PKG_DIR}/scripts/* ${INSTALL}/usr/lib/coreelec
 
   ADDON_INSTALL_DIR=${INSTALL}/usr/share/kodi/addons/service.coreelec.settings
+  if [ "${S905X2_BOARD}" = "yes" ]; then
+    cp "$(get_pkg_directory s905x2-board)/sources/s905x2_updates.py" \
+      "${ADDON_INSTALL_DIR}/resources/lib/s905x2_updates.py"
+  fi
   python_compile ${ADDON_INSTALL_DIR}/resources/lib/
   python_compile ${ADDON_INSTALL_DIR}/oe.py
 }

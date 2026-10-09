@@ -45,3 +45,6 @@ projects/**/*.old
 # Python build helper caches
 __pycache__/
 *.pyc
+
+# Persistent S905X2 build lock
+/.s905x2-build.lock
