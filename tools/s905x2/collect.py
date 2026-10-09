@@ -32,10 +32,10 @@ assert b'amcodec_dv: collect cold dual-layer input' in kodi.read_bytes(), 'nativ
 assert b'amcodec_dv: restore EL parameters' in kodi.read_bytes(), 'native Kodi seek headers missing'
 hevc=list(system.rglob('amvdec_h265.ko'))
 assert len(hevc)==1 and b'dv_el_start_policy' in hevc[0].read_bytes(), 'native HEVC DV patch missing'
-updater=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/s905x2_updates.py'
+updater=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/s905x2_updates.pyc'
 assert updater.exists() and b'latest/download/update.json' in updater.read_bytes(), 'native release updater missing'
-settings=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/modules/updates.py'
-assert b's905x2_updates.verify_download' in settings.read_bytes(), 'upgrade hash validation missing'
+settings=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/modules/updates.pyc'
+assert b'verify_download' in settings.read_bytes() and b's905x2_feed' in settings.read_bytes(), 'upgrade hash validation missing'
 assert b'DT_ID="g12a_s905x2_u212_2g_rtl8822cs"' in (system/'usr/share/bootloader/update.sh').read_bytes(), 'official NO migration selector missing'
 # Select this build's image/tar by shared stem, excluding previous release copies.
 images=sorted(target.glob('*Amlogic-no.aarch64*Generic.img.gz'),key=lambda p:p.stat().st_mtime)
