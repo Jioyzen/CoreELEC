@@ -1,8 +1,9 @@
 # S905X2 CoreELEC NO 修复版
 
-基于 [CoreELEC](https://github.com/CoreELEC/CoreELEC) 官方 `coreelec-22` 分支，为一台杂牌 **S905X2 / G12A、u212 接近板型、2GB DDR3、RTL8822CS SDIO Wi-Fi** 盒子制作的专用源码构建。
+基于 [CoreELEC](https://github.com/CoreELEC/CoreELEC) 官方 `coreelec-22` 分支，为某未知品牌 **S905X2（RTL8822CS Wi-Fi）** 盒子制作的专用修复源码。
 
-官方 Amlogic-no 系统可以启动，但这台盒子曾出现 HDMI 4K60 和启动交接花屏、Wi-Fi 吞吐不足，以及部分 Dolby Vision Profile 7 FEL 影片 seek／续播色块、绿线。本项目将已实机验证的修复集成进 DTB、驱动和 Kodi 源码，生成刷入后即可使用的镜像。
+这台盒子使用官方 Amlogic-no 出现 HDMI 4K60 和启动交接花屏、Wi-Fi 吞吐不足，以及部分 Dolby Vision Profile 7 FEL 影片 seek／续播色块、绿线。
+本项目将已实机验证的修复集成进 DTB、驱动和 Kodi 源码，生成刷入后即可使用的镜像。
 
 **不保证兼容所有 S905X2 盒子。** 同一 SoC 的不同板型可能使用不同内存、无线芯片和 framebuffer 地址。本项目不是 CoreELEC 官方发行版。
 
