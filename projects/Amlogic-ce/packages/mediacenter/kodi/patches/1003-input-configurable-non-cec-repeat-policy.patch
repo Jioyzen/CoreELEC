@@ -1,0 +1,171 @@
+Subject: [PATCH] input: configurable repeat policy for non-CEC remote inputs
+
+Use one optional environment policy for libinput keyboard and LIRC repeat
+paths. Preserve legacy behavior when unconfigured, exclude CEC inputs, and
+refresh cached settings on device reconnection.
+
+--- a/xbmc/platform/linux/input/LibInputKeyboard.cpp
++++ b/xbmc/platform/linux/input/LibInputKeyboard.cpp
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include "LibInputKeyboard.h"
++#include "RemoteRepeatPolicy.h"
+ 
+ #include "EvdevKeyMapping.h"
+ #include "LangInfo.h"
+@@ -604,13 +605,23 @@
+     close(fd);
+   }
+ 
++  const auto policy = KODI::INPUT::GetRemoteRepeatPolicy();
++  const bool isCec = KODI::INPUT::IsCecInput(name ? name : "") ||
++                     (libinput_device_get_id_vendor(dev) == 0x1b8e &&
++                      libinput_device_get_id_product(dev) == 0x0cec);
++  if (policy && !isCec)
++  {
++    kbdrep[0] = policy->delayMs;
++    kbdrep[1] = policy->periodMs;
++    CLog::Log(LOGDEBUG, "CLibInputKeyboard::{} - remote repeat policy: {}ms/{}ms for {} ({})",
++              __FUNCTION__, kbdrep[0], kbdrep[1], name, sysname);
++  }
++
+   std::vector<int> kbdrepvec(std::begin(kbdrep), std::end(kbdrep));
+ 
+-  auto data = m_repeatData.find(dev);
+-  if (data == m_repeatData.end())
+-  {
+-    m_repeatData.insert(std::make_pair(dev, kbdrepvec));
+-  }
++  // A newly connected device can reuse an old libinput pointer. Refresh its
++  // current settings rather than retaining another device's cached repeat rate.
++  m_repeatData.insert_or_assign(dev, std::move(kbdrepvec));
+ }
+ 
+ bool CLibInputKeyboard::SupportsKeyComposition() const
+--- a/xbmc/platform/linux/input/LIRC.cpp
++++ b/xbmc/platform/linux/input/LIRC.cpp
+@@ -7,6 +7,7 @@
+  */
+ 
+ #include "LIRC.h"
++#include "RemoteRepeatPolicy.h"
+ 
+ #include "ServiceBroker.h"
+ #include "application/AppInboundProtocol.h"
+@@ -150,11 +151,16 @@
+   if (!end || *end != 0)
+     CLog::Log(LOGERROR, "LIRC: invalid non-numeric character in expression {}", repeatStr);
+ 
++  const auto policy = KODI::INPUT::GetRemoteRepeatPolicy();
++  const bool usePolicy = policy && !KODI::INPUT::IsCecInput(deviceName);
++  const auto now = std::chrono::steady_clock::now();
++
+   if (repeat == 0)
+   {
+     CLog::Log(LOGDEBUG, "LIRC: - NEW {} {} {} {} ({})", &scanCode[0], &repeatStr[0], &buttonName[0],
+               &deviceName[0], buttonName);
+-    m_firstClickTime = std::chrono::steady_clock::now();
++    m_firstClickTime = now;
++    m_lastRepeatTime = now;
+ 
+     XBMC_Event newEvent = {};
+     newEvent.type = XBMC_BUTTON;
+@@ -165,13 +171,15 @@
+       appPort->OnEvent(newEvent);
+     return;
+   }
+-  else if (repeat > CServiceBroker::GetSettingsComponent()->GetAdvancedSettings()->m_remoteDelay)
++  else if (usePolicy ? KODI::INPUT::RemoteRepeatDue(m_firstClickTime, m_lastRepeatTime, now,
++                                                   *policy)
++                     : repeat > CServiceBroker::GetSettingsComponent()->GetAdvancedSettings()->m_remoteDelay)
+   {
+     XBMC_Event newEvent = {};
+     newEvent.type = XBMC_BUTTON;
+     newEvent.keybutton.button = button;
+ 
+-    auto now = std::chrono::steady_clock::now();
++    m_lastRepeatTime = now;
+     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_firstClickTime);
+ 
+     newEvent.keybutton.holdtime = duration.count();
+--- a/xbmc/platform/linux/input/LIRC.h
++++ b/xbmc/platform/linux/input/LIRC.h
+@@ -37,6 +37,7 @@
+ 
+   int m_fd = -1;
+   std::chrono::time_point<std::chrono::steady_clock> m_firstClickTime;
++  std::chrono::time_point<std::chrono::steady_clock> m_lastRepeatTime;
+   CCriticalSection m_critSection;
+   std::unique_ptr<KODI::KEYMAP::CIRTranslator> m_irTranslator;
+   int m_profileId;
+--- /dev/null
++++ b/xbmc/platform/linux/input/RemoteRepeatPolicy.h
+@@ -0,0 +1,67 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#pragma once
++
++#include <charconv>
++#include <chrono>
++#include <cstdlib>
++#include <optional>
++#include <string_view>
++
++namespace KODI::INPUT
++{
++struct RemoteRepeatPolicy
++{
++  int delayMs;
++  int periodMs;
++};
++
++inline std::optional<int> ReadRepeatValue(const char* name, int minimum, int maximum)
++{
++  const char* value = std::getenv(name);
++  if (!value)
++    return std::nullopt;
++  const std::string_view text{value};
++  int result = 0;
++  const auto parsed = std::from_chars(text.data(), text.data() + text.size(), result);
++  if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size() || result < minimum ||
++      result > maximum)
++    return std::nullopt;
++  return result;
++}
++
++inline std::optional<RemoteRepeatPolicy> GetRemoteRepeatPolicy()
++{
++  static const auto policy = []() -> std::optional<RemoteRepeatPolicy>
++  {
++    const auto period = ReadRepeatValue("KODI_REMOTE_REPEAT_PERIOD_MS", 50, 5000);
++    if (!period)
++      return std::nullopt;
++    const auto delay = ReadRepeatValue("KODI_REMOTE_REPEAT_DELAY_MS", 0, 5000);
++    return RemoteRepeatPolicy{delay.value_or(500), *period};
++  }();
++  return policy;
++}
++
++inline bool IsCecInput(std::string_view name)
++{
++  const auto lower = [](char c) { return c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c; };
++  for (size_t i = 0; i + 2 < name.size(); ++i)
++  {
++    if (lower(name[i]) == 'c' && lower(name[i + 1]) == 'e' && lower(name[i + 2]) == 'c')
++      return true;
++  }
++  return false;
++}
++
++inline bool RemoteRepeatDue(std::chrono::steady_clock::time_point first,
++                            std::chrono::steady_clock::time_point last,
++                            std::chrono::steady_clock::time_point now,
++                            const RemoteRepeatPolicy& policy)
++{
++  // Accept nominal repeat periods with a little scheduling jitter, rather than
++  // dropping alternate events whose measured spacing is just under the target.
++  constexpr auto tolerance = std::chrono::milliseconds{5};
++  return now - first + tolerance >= std::chrono::milliseconds{policy.delayMs} &&
++         now - last + tolerance >= std::chrono::milliseconds{policy.periodMs};
++}
++} // namespace KODI::INPUT

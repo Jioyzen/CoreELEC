@@ -1,0 +1,10 @@
+# Apply one repeat policy to keyboard-style USB/Bluetooth and rc-core remotes.
+ACTION!="add|change", GOTO="remote_repeat_policy_end"
+SUBSYSTEM!="input", GOTO="remote_repeat_policy_end"
+KERNEL!="event*", GOTO="remote_repeat_policy_end"
+ATTRS{name}=="*cec*|*CEC*|*Cec*|eventlircd", GOTO="remote_repeat_policy_end"
+ATTRS{id/vendor}=="1b8e", ATTRS{id/product}=="0cec", GOTO="remote_repeat_policy_end"
+# Amlogic meson IR lacks EV_REP: Kodi supplies its software repeat policy.
+ATTRS{capabilities/ev}!="*[13579bdf]?????", GOTO="remote_repeat_policy_end"
+RUN+="/usr/lib/coreelec/evrepeat-policy.sh $devnode"
+LABEL="remote_repeat_policy_end"
