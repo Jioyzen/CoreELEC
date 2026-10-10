@@ -51,7 +51,7 @@
      RESOLVE_METHOD(codec_init)
 --- /dev/null
 +++ b/xbmc/cores/VideoPlayer/DVDCodecs/Video/AMLDVStreamGuard.h
-@@ -0,0 +1,248 @@
+@@ -0,0 +1,251 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later
 + * Restore DV enhancement-layer headers before decoder input, including cold
 + * resume. Replay byte writes and PTS checkins together; never mix movie caches.
@@ -100,7 +100,10 @@
 +    int (*original_init)(codec_para_t *) = nullptr;
 +    int (*original_pts)(codec_para_t *, unsigned long long) = nullptr;
 +    pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-+    unsigned char cache[3][512]{}, nal[512]{}, injection[1600]{};
++    // EL SPS can exceed 512 bytes when scaling-list data is present.
++    static constexpr size_t kMaxELParameterBytes = 16 * 1024;
++    unsigned char cache[3][kMaxELParameterBytes]{}, nal[kMaxELParameterBytes]{};
++    unsigned char injection[3 * (kMaxELParameterBytes + 4)]{};
 +    size_t cachelen[3]{}, nallen=0, injectionlen=0, injectionoff=0;
 +    unsigned zeroes=0;
 +    int have_nal=0;

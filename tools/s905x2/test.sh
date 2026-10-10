@@ -17,6 +17,10 @@ c++ -std=c++17 -O1 -g -fsanitize=address,undefined \
   -I "$S905X2_TEST_TMP" -I tools/s905x2/tests/stubs \
   tools/s905x2/tests/test_dv_stream_guard.cpp -o "$S905X2_TEST_TMP/test" -pthread
 "$S905X2_TEST_TMP/test"
+c++ -std=c++17 -O1 -g -fsanitize=address,undefined \
+  -I "$S905X2_TEST_TMP" -I tools/s905x2/tests/stubs \
+  tools/s905x2/tests/test_dv_large_el_sps.cpp -o "$S905X2_TEST_TMP/test-large-el" -pthread
+"$S905X2_TEST_TMP/test-large-el"
 python3 - <<'PY'
 import hashlib,json,pathlib
 p=pathlib.Path('projects/Amlogic-ce/packages/s905x2-board/sources')
