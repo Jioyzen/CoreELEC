@@ -1,0 +1,132 @@
+Subject: [PATCH] hdmitx: honor depth preferences and validate sink colour capabilities
+
+Prefer 420 for automatic high-rate UHD with an explicit sub-12-bit depth.
+Check RX colour/depth and TMDS capabilities that the common validator skips.
+Fall back temporarily without changing the preference; keep DV tunneling.
+
+--- a/drivers/drm/meson_hdmi.c
++++ b/drivers/drm/meson_hdmi.c
+@@ -296,6 +296,56 @@
+ 	       mode != AMDV_OUTPUT_MODE_SDR8;
+ }
+ 
++/* The common validator deliberately skips RX colour checks.  Check them
++ * here before accepting an SDR/HDR preference for a newly connected sink.
++ * DV tunneling is handled separately by the caller.
++ */
++static bool meson_hdmitx_sink_supports_format(struct hdmitx_common *common,
++					    struct hdmi_format_para *para)
++{
++	struct rx_cap *rx = &common->rxcap;
++	unsigned int max_tmds = rx->Max_TMDS_Clock2 ?
++		rx->Max_TMDS_Clock2 * 5000 : rx->Max_TMDS_Clock1 * 5000;
++	enum hdmi_color_depth max_depth = COLORDEPTH_24B;
++
++	if (rx->ieeeoui != HDMI_IEEE_OUI)
++		return para->cs == HDMI_COLORSPACE_RGB && para->cd == COLORDEPTH_24B;
++
++	/* G12A has no FRL link; reject a candidate exceeding the sink TMDS limit.
++	 * Let the common validator handle FRL-capable transmitters.
++	 */
++	if (common->tx_hw->hdmi_tx_cap.tx_max_frl_rate == FRL_NONE &&
++	    max_tmds && para->tmds_clk > max_tmds)
++		return false;
++
++	switch (para->cs) {
++	case HDMI_COLORSPACE_YUV420:
++		if (!hdmitx_edid_check_y420_support(rx, para->vic))
++			return false;
++		if (para->cd == COLORDEPTH_30B)
++			return rx->dc_30bit_420;
++		if (para->cd == COLORDEPTH_36B)
++			return rx->dc_36bit_420;
++		return para->cd == COLORDEPTH_24B;
++	case HDMI_COLORSPACE_YUV422:
++		return rx->native_Mode & (1 << 4);
++	case HDMI_COLORSPACE_YUV444:
++		if (!(rx->native_Mode & (1 << 5)))
++			return false;
++		if (!rx->dc_y444)
++			return para->cd == COLORDEPTH_24B;
++		fallthrough;
++	case HDMI_COLORSPACE_RGB:
++		if (rx->dc_30bit || rx->dv_info.sup_10b_12b_444 == 0x1)
++			max_depth = COLORDEPTH_30B;
++		if (rx->dc_36bit || rx->dv_info.sup_10b_12b_444 == 0x2)
++			max_depth = COLORDEPTH_36B;
++		return para->cd <= max_depth;
++	default:
++		return false;
++	}
++}
++
+ static int meson_hdmitx_decide_color_attr
+ 	(struct hdmitx_common *common, struct am_meson_crtc_state *crtc_state,
+ 	struct hdmitx_color_attr *attr, u64 sequence_id)
+@@ -350,7 +400,12 @@
+ 				* otherwise retain the existing YCbCr 4:2:0
+ 				* behaviour.
+ 				*/
+-				if (is_support_y422(&common->rxcap))
++				/* YCbCr 4:2:2 uses a 12-bit transport container even
++				 * for 8/10-bit samples. Honour an explicit lower
++				 * depth limit by preferring 4:2:0 in high-rate UHD.
++				 */
++				if (is_support_y422(&common->rxcap) &&
++				    !(strstr(common->fmt_attr, "bit") && fmt_attr.bitdepth < 12))
+ 					attr->colorformat = HDMI_COLORSPACE_YUV422;
+ 				else
+ 					attr->colorformat = HDMI_COLORSPACE_YUV420;
+@@ -419,6 +474,52 @@
+ 				DRM_INFO("[%s]: display colourdepth is auto set to %d bits\n", __func__,
+ 					attr->bitdepth);
+ 		}
++	}
++
++	/* Validate the preference for the current sink, retaining fmt_attr so
++	 * a temporary fallback does not overwrite the user's configuration.
++	 * DV tunneling has its own mandatory format and remains separate.
++	 */
++	if (!is_amdv_output_dv()) {
++		char attr_str[HDMITX_ATTR_LEN_MAX];
++		const unsigned int requested_depth = attr->bitdepth;
++		const enum hdmi_colorspace requested_cs = attr->colorformat;
++		const unsigned int depths[] = {12, 10, 8};
++		enum hdmi_colorspace formats[] = {
++			requested_cs, HDMI_COLORSPACE_YUV444, HDMI_COLORSPACE_RGB,
++			HDMI_COLORSPACE_YUV420, HDMI_COLORSPACE_YUV422
++		};
++		unsigned int format_index, depth_index;
++		bool supported = false;
++
++		for (format_index = 0; format_index < ARRAY_SIZE(formats); format_index++) {
++			if (format_index && formats[format_index] == HDMI_COLORSPACE_YUV422 &&
++			    requested_depth < 12)
++				continue;
++			for (depth_index = 0; depth_index < ARRAY_SIZE(depths); depth_index++) {
++				if (depths[depth_index] > requested_depth)
++					continue;
++				memset(&comm_state, 0, sizeof(comm_state));
++				comm_state.state_sequence_id = sequence_id;
++				build_hdmitx_attr_str(attr_str, formats[format_index], depths[depth_index]);
++				if (!hdmitx_common_validate_mode_locked(common, &comm_state, outputmode,
++								      attr_str, false, true) &&
++				    meson_hdmitx_sink_supports_format(common, &comm_state.para)) {
++					attr->colorformat = formats[format_index];
++					attr->bitdepth = depths[depth_index];
++					supported = true;
++					break;
++				}
++			}
++			if (supported)
++				break;
++		}
++		if (!supported)
++			return -EINVAL;
++		if (attr->colorformat != requested_cs || attr->bitdepth != requested_depth)
++			DRM_INFO("[%s]: preference %s,%dbit unavailable; temporary fallback %s,%dbit\n",
++				 __func__, colour_sampling[requested_cs], requested_depth,
++				 colour_sampling[attr->colorformat], attr->bitdepth);
+ 	}
+ 
+ 	DRM_INFO("[%s]:[%s,eotf:%d,vic:%d]=>attr[%s,%dbit]\n", __func__,
