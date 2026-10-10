@@ -33,6 +33,9 @@ setenv bootargs "${bootargs} ${initargs} ${displayopt} ${coreelec}"
 fatload ${device} ${devnr}:${partnr} ${loadaddr} kernel.img
 fatload ${device} ${devnr}:${partnr} ${dtb_mem_addr} dtb.img
 
+if fdt addr ${dtb_mem_addr}; then if fdt get value s905x2_boot_dt_id / amlogic-dt-id; then if test "${s905x2_boot_dt_id}" = "g12a_s905x2_u212_2g_rtl8822cs"; then echo "S905X2: stop U-Boot audio DMA before Linux handoff"; md.l 0xff6421c0 1; md.l 0xff6421c8 2; mw.l 0xff6421c0 0 1; md.l 0xff6421c0 1; fi; fi; fi
+setenv s905x2_boot_dt_id
+
 bootm ${loadaddr}
 bootm start
 bootm loados
