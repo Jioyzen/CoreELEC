@@ -1,0 +1,50 @@
+From: S905X2 local fixes
+Subject: [PATCH] guilib: wrap Han text without scanning whole paragraph prefixes
+
+Treat Han ideographs as word boundaries before measuring text widths. A long
+Chinese paragraph otherwise takes the long-word fallback for every line and
+repeatedly shapes all prefixes of every remaining suffix on the GUI thread.
+Keep closing punctuation with the preceding ideograph and retain the existing
+shaping-aware long-word fallback for other scripts.
+
+--- a/xbmc/guilib/GUITextLayout.cpp
++++ b/xbmc/guilib/GUITextLayout.cpp
+@@ -671,10 +671,34 @@
+ 
+     while (current != line.m_text.end())
+     {
+-      // Find next candidate wrap position
+-      auto wordEnd = std::find_if(current, line.m_text.end(),
+-                                  std::bind_front(&CGUITextLayout::CanWrapAtLetter, this));
+-      const bool hasSpace = (wordEnd != line.m_text.end());
++      // Han ideographs provide wrap opportunities without spaces. Treating a
++      // whole Chinese paragraph as one word sends every remaining suffix through
++      // the expensive long-word prefix scan, blocking the GUI thread for seconds.
++      // Split at ideographs before measuring words; retain the original shaping
++      // and long-word fallback for other scripts.
++      auto wordEnd = current;
++      while (wordEnd != line.m_text.end() && !CanWrapAtLetter(*wordEnd))
++      {
++        const character_t ch = *wordEnd++ & 0xffff;
++        if ((ch >= 0x3400 && ch <= 0x4dbf) || (ch >= 0x4e00 && ch <= 0x9fff) ||
++            (ch >= 0xf900 && ch <= 0xfaff))
++        {
++          // Do not move closing punctuation to the beginning of the next line.
++          while (wordEnd != line.m_text.end())
++          {
++            const character_t next = *wordEnd & 0xffff;
++            if (next != 0x3001 && next != 0x3002 && next != 0xff0c && next != 0xff0e &&
++                next != 0xff01 && next != 0xff1f && next != 0xff1a && next != 0xff1b &&
++                next != 0x3009 && next != 0x300b && next != 0x300d && next != 0x300f &&
++                next != 0x3011 && next != 0xff09 && next != 0x201d && next != 0x2019 &&
++                next != 0x2026)
++              break;
++            ++wordEnd;
++          }
++          break;
++        }
++      }
++      const bool hasSpace = (wordEnd != line.m_text.end() && CanWrapAtLetter(*wordEnd));
+       const float wordWidth = widthOf(current, wordEnd);
+ 
+       // Try to include word + trailing space
