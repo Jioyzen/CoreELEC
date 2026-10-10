@@ -8,6 +8,11 @@ build=pathlib.Path(os.environ.get('BUILD_DIR',root))/'build.CoreELEC-Amlogic-no.
 # CoreELEC builds mtools itself, so verification need not depend on host mtools.
 mcopy=shutil.which('mcopy') or str(build/'toolchain/bin/mcopy')
 system=build/'image/system'
+# A firmware build must not reactivate unsupported SSH terminal integration.
+for profile in ('70-systemd-shell-extra', '80-systemd-osc-context'):
+ assert not os.path.lexists(system/'etc/profile.d'/(profile+'.sh')), 'systemd shell profile still active'
+for rule in ('20-systemd-shell-extra.conf', '20-systemd-osc-context.conf'):
+ assert not os.path.lexists(system/'usr/lib/tmpfiles.d'/rule), 'systemd profile tmpfiles rule still present'
 out=target/'s905x2-release'
 if out.exists():
  assert out.parent==target and out.name=='s905x2-release'

@@ -92,6 +92,7 @@ PKG_MESON_OPTS_TARGET="--libdir=/usr/lib \
                        -Dlink-systemctl-shared=true \
                        -Dlink-networkd-shared=false \
                        -Djournal-storage-default=auto \
+                       -Dshellprofiledir=no \
                        -Dbashcompletiondir=no \
                        -Dzshcompletiondir=no \
                        -Dkmod-path=/usr/bin/kmod \
