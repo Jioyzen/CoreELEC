@@ -1,0 +1,26 @@
+Subject: [PATCH] guilib: preserve one move per sparse held navigation event
+
+Slow keyboard repeat rates must not use the frame-rate based hold accelerator.
+Keep regular navigation dispatch so action sounds and focus behavior are retained.
+
+--- a/xbmc/guilib/GUIBaseContainer.cpp
++++ b/xbmc/guilib/GUIBaseContainer.cpp
+@@ -437,6 +437,18 @@
+         ((m_orientation == VERTICAL && (action.GetID() == ACTION_MOVE_UP || action.GetID() == ACTION_MOVE_DOWN)) ||
+          (m_orientation == HORIZONTAL && (action.GetID() == ACTION_MOVE_LEFT || action.GetID() == ACTION_MOVE_RIGHT))))
+       { // action is held down - repeat a number of times
++        const unsigned int now = CTimeUtils::GetFrameTime();
++        const unsigned int elapsed = now - m_lastHoldTime;
++        // Sparse keyboard repeats already define their navigation speed. The
++        // 50ms frame cap below would otherwise swallow early repeats and later
++        // produce multiple moves per event. Preserve the normal action path,
++        // including navigation sounds, and perform one move per sparse repeat.
++        if (elapsed >= 100u)
++        {
++          m_lastHoldTime = now;
++          m_scrollItemsPerFrame = 0.0f;
++          return CGUIControl::OnAction(action);
++        }
+         float speed = std::min(1.0f, (float)(action.GetHoldTime() - HOLD_TIME_START) / (HOLD_TIME_END - HOLD_TIME_START));
+         unsigned int frameDuration = std::min(CTimeUtils::GetFrameTime() - m_lastHoldTime, 50u); // max 20fps
+ 

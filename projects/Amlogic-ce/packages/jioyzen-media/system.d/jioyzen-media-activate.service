@@ -1,0 +1,11 @@
+[Unit]
+Description=Enable preinstalled Jioyzen media addons
+After=kodi.service jioyzen-media-seed.service
+Requires=kodi.service
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/jioyzen-media/activate.sh
+TimeoutStartSec=200
+RemainAfterExit=yes
+[Install]
+WantedBy=kodi.target

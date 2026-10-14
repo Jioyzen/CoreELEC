@@ -8,11 +8,14 @@ import re
 import urllib.parse
 import urllib.request
 
-FEED_URL = 'https://github.com/Jioyzen/CoreELEC/releases/latest/download/update.json'
+BASE_FEED_URL = 'https://github.com/Jioyzen/CoreELEC/releases/latest/download/update.json'
+MEDIA_FEED_URL = 'https://github.com/Jioyzen/CoreELEC/releases/download/media-channel/update.json'
+EDITION = 'media' if pathlib.Path('/usr/share/jioyzen-media/profile.json').is_file() else 'base'
+FEED_URL = MEDIA_FEED_URL if EDITION == 'media' else BASE_FEED_URL
 RELEASE_BASE = 'https://github.com/Jioyzen/CoreELEC/releases/download/'
 BOARD_ID = 'g12a_s905x2_u212_2g_rtl8822cs'
 ARCHITECTURE = 'Amlogic-no.aarch64'
-CHANNEL = 'S905X2-22'
+CHANNEL = 'Jioyzen-Media-22' if EDITION == 'media' else 'S905X2-22'
 MARKER = '/usr/share/s905x2/manifest.json'
 
 
@@ -26,10 +29,13 @@ def validate_feed(data, architecture=ARCHITECTURE):
         raise ValueError('Invalid CoreELEC 22 build version')
     if not re.fullmatch(r'[0-9a-f]{40}', data['build_id']):
         raise ValueError('Invalid source commit')
+    if data.get('edition', 'base') != EDITION:
+        raise ValueError('Update belongs to another edition')
     artifact = data['artifact']
     name = artifact['name']
     expected = ('CoreELEC-' + ARCHITECTURE + '-' + data['version'] +
-                '-S905X2-U212-2G-RTL8822CS.tar')
+                ('-MEDIA-S905X2-U212-2G-RTL8822CS.tar' if EDITION == 'media' else
+                 '-S905X2-U212-2G-RTL8822CS.tar'))
     if name != expected:
         raise ValueError('Unexpected upgrade package name')
     url = artifact['url']
@@ -94,7 +100,7 @@ def manual_response(feed):
     base, name = url.rsplit('/', 1)
     return {CHANNEL: {
         'url': base + '/',
-        'prettyname_regex': r'CoreELEC-Amlogic-no\.aarch64-(.*)-S905X2-U212-2G-RTL8822CS\.tar',
+        'prettyname_regex': r'CoreELEC-Amlogic-no\.aarch64-(.*?)(?:-MEDIA)?-S905X2-U212-2G-RTL8822CS\.tar',
         'project': {ARCHITECTURE: {'releases': {'1': {'file': {'name': name}}}}},
     }}
 

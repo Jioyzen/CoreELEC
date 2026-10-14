@@ -1,0 +1,13 @@
+[Unit]
+Description=Deploy Jioyzen offline media software
+After=storage.mount
+Before=kodi.service remote-config.service remote-config-tx.service
+Requires=storage.mount
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/lib/jioyzen-media/deploy.py
+ExecStartPost=-/usr/bin/udevadm trigger --subsystem-match=input --action=change
+RemainAfterExit=yes
+TimeoutStartSec=600
+[Install]
+WantedBy=kodi.target

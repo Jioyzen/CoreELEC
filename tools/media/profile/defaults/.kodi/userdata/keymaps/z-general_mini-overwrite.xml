@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='utf-8'?>
+<keymap>
+    <fullscreenvideo>
+        <keyboard>
+            <key id="61538">ActivateWindow(dialogselectsubtitle)</key>
+            <key id="61486">ActivateWindow(dialogselectaudio)</key>
+            <key id="61467">stop</key>
+        </keyboard>
+    </fullscreenvideo>
+</keymap>

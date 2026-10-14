@@ -1,0 +1,243 @@
+Subject: [PATCH] amlogic: preserve user HDMI timings and recover new sinks
+
+Keep active and GUI timings across transient HPD/EDID loss, retry valid-mode
+discovery, reattach inactive encoders, and allow single-mode displays. Use an
+advertised fallback on a smaller monitor while preserving the GUI preference.
+
+--- a/xbmc/windowing/amlogic/WinSystemAmlogic.cpp
++++ b/xbmc/windowing/amlogic/WinSystemAmlogic.cpp
+@@ -11,6 +11,8 @@
+ #include <string.h>
+ #include <float.h>
+ #include <exception>
++#include <algorithm>
++#include <cmath>
+ 
+ #include "ServiceBroker.h"
+ #include "cores/RetroPlayer/process/amlogic/RPProcessInfoAmlogic.h"
+@@ -188,15 +190,60 @@
+ 
+ bool CWinSystemAmlogic::MessagePump()
+ {
+-  if (m_hotplugPending.exchange(false))
++  if (m_hotplugPending.exchange(false) ||
++      (m_hotplugRetryPending && m_hotplugRetryTimer.IsTimePast()))
++  {
++    m_hotplugRetryPending = false;
+     HotplugEvent();
++  }
+ 
+   return false;
+ }
+ 
+ void CWinSystemAmlogic::HotplugEvent()
+ {
++  // Snapshot before rebuilding the resolution list: RES_DESKTOP and custom
++  // indices can change while the receiver is negotiating its EDID again.
++  if (!m_hotplugRestoreResolution)
++  {
++    const auto current = CDisplaySettings::GetInstance().GetResolutionInfo(
++        GetGfxContext().GetVideoResolution());
++    if (!current.strId.empty() && current.strId != "dummy_l" &&
++        current.iScreenWidth > 0 && current.iScreenHeight > 0)
++      m_hotplugRestoreResolution = current;
++    const auto desktop = CDisplaySettings::GetInstance().GetResolutionInfo(RES_DESKTOP);
++    const auto setting = CServiceBroker::GetSettingsComponent()->GetSettings()->GetString(
++        CSettings::SETTING_VIDEOSCREEN_SCREENMODE);
++    if (!m_hotplugPreferredDesktop || setting != m_hotplugPreferredSetting)
++    {
++      if (!desktop.strId.empty() && desktop.strId != "dummy_l")
++        m_hotplugPreferredDesktop = desktop;
++      m_hotplugPreferredSetting = setting;
++    }
++    m_hotplugDesktopResolution = m_hotplugPreferredDesktop;
++    // A small monitor may require a temporary GUI fallback. When returning to
++    // the original sink, prefer the saved GUI timing rather than that fallback.
++    // A movie's independently selected refresh rate remains the active target.
++    if (m_hotplugPreferredDesktop && current.iScreenWidth == desktop.iScreenWidth &&
++        current.iScreenHeight == desktop.iScreenHeight &&
++        (current.dwFlags & D3DPRESENTFLAG_MODEMASK) ==
++            (desktop.dwFlags & D3DPRESENTFLAG_MODEMASK) &&
++        std::abs(current.fRefreshRate - desktop.fRefreshRate) < 0.01f)
++      m_hotplugRestoreResolution = m_hotplugPreferredDesktop;
++  }
+   SetPresentationReady(false);
++
++  const auto defer = [this](unsigned int delayMs)
++  {
++    m_hotplugRetryPending = true;
++    m_hotplugRetryTimer.Set(std::chrono::milliseconds(delayMs));
++  };
++  CSysfsPath hpd{"/sys/class/amhdmitx/amhdmitx0/hpd_state"};
++  if (hpd.Get<int>().value_or(1) == 0)
++  {
++    defer(500);
++    return;
++  }
+ 
+   try
+   {
+@@ -206,6 +253,7 @@
+   {
+     CLog::Log(LOGERROR, "CWinSystemAmlogic::{} - display rebuild failed: {}", __FUNCTION__,
+               e.what());
++    defer(500);
+     return;
+   }
+ 
+@@ -214,43 +262,95 @@
+ 
+   RefreshDisplayCapabilities();
+ 
+-  if (connection == DRM_MODE_DISCONNECTED && mode_count == 1)
+-  {
+-    CLog::Log(LOGWARNING,
+-      "CWinSystemAmlogic - HotplugEvent mode switch ignored while HDMI DRM connector is not ready ({:d} modes)",
+-      mode_count);
++  std::vector<RESOLUTION_INFO> available;
++  const bool haveModes = m_amlDisplay->aml_probe_resolutions(available) &&
++      std::any_of(available.begin(), available.end(), [](const auto& mode)
++      { return !mode.strId.empty() && mode.strId != "dummy_l"; });
++  // A receiver can advertise valid modes before an encoder is active.
++  // The forced hotplug modeset below reattaches that encoder.
++  if (mode_count == 0 || !haveModes)
++  {
++    CLog::Log(LOGDEBUG, "CWinSystemAmlogic - HDMI modes not ready; keep saved resolution");
++    defer(100);
+     return;
+   }
+ 
+-  std::string preferred_mode = m_amlDisplay->aml_get_preferred_mode();
+-  RESOLUTION res = static_cast<RESOLUTION>(RES_DESKTOP);
+-
++  RESOLUTION res = RES_DESKTOP;
+   CDisplaySettings::GetInstance().ClearCustomResolutions();
+   RefreshResolutions();
+-  CDisplaySettings::GetInstance().ApplyCalibrations();
+-
+-  if (!preferred_mode.empty())
+-  {
+-    for (size_t resolution = RES_DESKTOP; resolution < CDisplaySettings::GetInstance().ResolutionInfoSize(); resolution++)
+-    {
+-      RESOLUTION_INFO resinfo = CDisplaySettings::GetInstance().GetResolutionInfo(resolution);
+-      if (StringUtils::EqualsNoCase(resinfo.strId, preferred_mode))
++  const auto matchesTiming = [](const auto& candidate, const auto& wanted)
++  {
++    return candidate.iScreenWidth == wanted.iScreenWidth &&
++           candidate.iScreenHeight == wanted.iScreenHeight &&
++           (candidate.dwFlags & D3DPRESENTFLAG_MODEMASK) ==
++               (wanted.dwFlags & D3DPRESENTFLAG_MODEMASK) &&
++           std::abs(candidate.fRefreshRate - wanted.fRefreshRate) < 0.01f;
++  };
++  // Keep the GUI desktop timing separate from a movie's active refresh rate.
++  // Do not restore an old desktop that a genuinely different sink cannot use.
++  if (m_hotplugDesktopResolution)
++  {
++    for (size_t index = RES_DESKTOP;
++         index < CDisplaySettings::GetInstance().ResolutionInfoSize(); ++index)
++    {
++      const auto& mode = CDisplaySettings::GetInstance().GetResolutionInfo(index);
++      if (mode.strId != "dummy_l" && matchesTiming(mode, *m_hotplugDesktopResolution))
+       {
+-        res = static_cast<RESOLUTION>(resolution);
++        CDisplaySettings::GetInstance().GetResolutionInfo(RES_DESKTOP) = mode;
+         break;
+       }
+     }
+-
+-    CLog::Log(LOGDEBUG, "CWinSystemAmlogic - HotplugEvent, preferred mode: {}, display mode: {}",
+-      preferred_mode, CDisplaySettings::GetInstance().GetResolutionInfo(res).strId);
+-  }
+-  else
+-    CLog::Log(LOGWARNING, "CWinSystemAmlogic - HotplugEvent, no preferred mode defined, use display mode: {}",
+-      CDisplaySettings::GetInstance().GetResolutionInfo(res).strId);
++  }
++  const auto desktop = CDisplaySettings::GetInstance().GetResolutionInfo(RES_DESKTOP);
++  const bool desktopSupported = std::any_of(available.begin(), available.end(),
++      [&](const auto& mode) { return mode.strId != "dummy_l" && matchesTiming(mode, desktop); });
++  if (!desktopSupported)
++  {
++    for (size_t index = RES_DESKTOP + 1;
++         index < CDisplaySettings::GetInstance().ResolutionInfoSize(); ++index)
++    {
++      if (CDisplaySettings::GetInstance().GetResolutionInfo(index).strId != "dummy_l")
++      {
++        CDisplaySettings::GetInstance().GetResolutionInfo(RES_DESKTOP) =
++            CDisplaySettings::GetInstance().GetResolutionInfo(index);
++        res = RES_DESKTOP;
++        break;
++      }
++    }
++  }
++  CDisplaySettings::GetInstance().ApplyCalibrations();
++
++  // Reconnection must not restore the immutable boot-time vout preference.
++  // Restore the user's current timing if the sink still advertises it.
++  if (m_hotplugRestoreResolution)
++  {
++    const auto& wanted = *m_hotplugRestoreResolution;
++    for (size_t index = RES_DESKTOP;
++         index < CDisplaySettings::GetInstance().ResolutionInfoSize(); ++index)
++    {
++      const auto& candidate = CDisplaySettings::GetInstance().GetResolutionInfo(index);
++      if (matchesTiming(candidate, wanted))
++      {
++        res = static_cast<RESOLUTION>(index);
++        break;
++      }
++    }
++    CLog::Log(LOGINFO, "CWinSystemAmlogic - HDMI reconnect: requested {} @ {:.3f}, selected {} @ {:.3f}",
++              wanted.strId, wanted.fRefreshRate,
++              CDisplaySettings::GetInstance().GetResolutionInfo(res).strId,
++              CDisplaySettings::GetInstance().GetResolutionInfo(res).fRefreshRate);
++  }
+ 
+   m_amlDisplay->SetHotPlug();
+   CServiceBroker::GetWinSystem()->GetGfxContext().SetVideoResolution(res, true);
+   CServiceBroker::GetWinSystem()->GetGfxContext().ApplyModeChange(res);
++  if (IsPresentationReady())
++  {
++    m_hotplugRestoreResolution.reset();
++    m_hotplugDesktopResolution.reset();
++  }
++  else
++    defer(200);
+ }
+ 
+ void CWinSystemAmlogic::FDEventCallback(int id, int fd, short revents, void *data)
+--- a/xbmc/windowing/amlogic/WinSystemAmlogic.h
++++ b/xbmc/windowing/amlogic/WinSystemAmlogic.h
+@@ -19,6 +19,7 @@
+ #include "utils/EGLUtils.h"
+ 
+ #include <atomic>
++#include <optional>
+ #include <gbm.h>
+ 
+ class IDispResource;
+@@ -94,6 +95,13 @@
+   void RefreshDisplayCapabilities();
+   static void FDEventCallback(int id, int fd, short revents, void *data);
+ 
++  std::optional<RESOLUTION_INFO> m_hotplugRestoreResolution;
++  std::optional<RESOLUTION_INFO> m_hotplugDesktopResolution;
++  std::optional<RESOLUTION_INFO> m_hotplugPreferredDesktop;
++  std::string m_hotplugPreferredSetting;
++  bool m_hotplugRetryPending{false};
++  XbmcThreads::EndTime<> m_hotplugRetryTimer;
++
+   int m_fdMonitorId;
+ 
+   struct udev *m_udev;
+--- a/xbmc/windowing/amlogic/AMLDisplay.cpp
++++ b/xbmc/windowing/amlogic/AMLDisplay.cpp
+@@ -535,7 +535,8 @@
+ {
+   std::unique_lock<CCriticalSection> lock(m_drmSection);
+   bool ret = false;
+-  const bool _hotplug_mode_switch = hotplug_mode_switch && m_connector && m_connector->count_modes > 1;
++  const bool _hotplug_mode_switch = hotplug_mode_switch && m_connector && m_connector->count_modes > 0 &&
++      !(m_connector->count_modes == 1 && strcmp(m_connector->modes[0].name, "dummy_l") == 0);
+   const bool _force_mode_switch = force_mode_switch || _hotplug_mode_switch;
+ 
+   m_width = res.iWidth;

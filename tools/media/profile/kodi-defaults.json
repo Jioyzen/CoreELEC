@@ -1,0 +1,17 @@
+{
+  "lookandfeel.skin": "skin.embuary.mod.jioyzen",
+  "lookandfeel.skincolors": "SKINDEFAULT",
+  "lookandfeel.skintheme": "SKINDEFAULT",
+  "lookandfeel.font": "Default",
+  "lookandfeel.skinzoom": 0,
+  "locale.language": "resource.language.zh_cn",
+  "locale.keyboardlayouts": [
+    "English QWERTY",
+    "Chinese BasePY"
+  ],
+  "weather.addon": "weather.jioyzen",
+  "addons.unknownsources": true,
+  "addons.updatemode": 1,
+  "general.addonupdates": 1,
+  "services.webserver": false
+}

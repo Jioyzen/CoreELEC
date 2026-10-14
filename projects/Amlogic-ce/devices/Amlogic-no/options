@@ -160,3 +160,9 @@ if [ "${S905X2_BOARD}" = "yes" ]; then
   ADDITIONAL_DRIVERS+=" rtl88x2cs-s905x2"
   ADDITIONAL_PACKAGES+=" s905x2-board"
 fi
+
+# Optional complete media edition; the base board profile stays minimal.
+if [ "${JIOYZEN_MEDIA_EDITION}" = "yes" ]; then
+  ADDITIONAL_PACKAGES+=" jioyzen-media"
+  SYSTEM_SIZE=1024
+fi
