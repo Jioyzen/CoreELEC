@@ -4,7 +4,7 @@ PKG_VERSION="1.0"
 PKG_ARCH="aarch64"
 PKG_LICENSE="mixed"
 PKG_SITE="https://github.com/Jioyzen/CoreELEC"
-PKG_DEPENDS_TARGET="toolchain"
+PKG_DEPENDS_TARGET="toolchain evrepeat"
 PKG_LONGDESC="Verified S905X2 u212-compatible board defaults and Dolby Vision module"
 PKG_TOOLCHAIN="manual"
 
@@ -22,4 +22,10 @@ options 88x2cs rtw_power_mgnt=0 rtw_ips_mode=0 rtw_en_napi=1 rtw_en_gro=1
 CONFIG
   mkdir -p ${INSTALL}/usr/share/s905x2
     cp ${PKG_DIR}/sources/manifest.json ${INSTALL}/usr/share/s905x2/manifest.json
+
+  # Optional input policy: no repeat rate or personal remote maps are shipped.
+  mkdir -p ${INSTALL}/usr/lib/systemd/system/kodi.service.d ${INSTALL}/usr/lib/udev/rules.d
+    cp ${PKG_DIR}/sources/35-remote-repeat-policy.conf ${INSTALL}/usr/lib/systemd/system/kodi.service.d/
+    cp ${PKG_DIR}/sources/99-remote-repeat-policy.rules ${INSTALL}/usr/lib/udev/rules.d/
+    install -m 0755 ${PKG_DIR}/sources/evrepeat-policy.sh ${INSTALL}/usr/lib/coreelec/
 }
