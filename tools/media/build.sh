@@ -20,4 +20,5 @@ python3 -m unittest discover -s tools/media/tests -p 'test_*.py'
 ./tools/s905x2/test.sh
 make image
 python3 tools/s905x2/collect.py
+python3 tools/media/verify_image.py --release "${TARGET_DIR:-$PWD/target}/s905x2-release" --toolchain "${BUILD_DIR:-$PWD}/build.CoreELEC-Amlogic-no.aarch64-22/toolchain"
 python3 tools/media/collect.py

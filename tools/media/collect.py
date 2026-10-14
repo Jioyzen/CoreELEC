@@ -48,6 +48,9 @@ def collect():
     validation=json.loads((pathlib.Path(os.environ['JIOYZEN_MEDIA_PAYLOAD_DIR'])/'offline-validation.json').read_text())
     assert validation['profile_id']==profile['profile_id'] and validation['payload_sha256']==profile['payload_sha256']
     (out/'offline-validation.json').write_text(json.dumps(validation,indent=2)+'\n')
+    image_validation=json.loads((source/'offline-image-validation.json').read_text())
+    assert image_validation['profile_id']==profile['profile_id'] and image_validation['embedded_installer']=='passed'
+    (out/'offline-image-validation.json').write_text(json.dumps(image_validation,indent=2)+'\n')
     base.update(edition='media',release_tag=tag,profile=profile,artifacts={p.name:sha256(p) for p in out.iterdir() if p.name.endswith(('.img.gz','.tar'))})
     (out/'build-manifest.json').write_text(json.dumps(base,ensure_ascii=False,indent=2)+'\n')
     (out/'RELEASE-NOTES.md').write_text('''# Jioyzen 完整播放器固件
@@ -60,6 +63,7 @@ def collect():
 - 自动启用 Embuary Mod、中文和天气卡片；默认定位城市。媒体来源、云盘及服务器账号、AI密钥由用户自己配置。
 - 网络工具主程序已安装，默认未启用自启动，不预设账号密码和挂载。
 - 不包含个人 userdata、媒体库、缩略图、网络凭据、蓝牙配对、设备 SSH 密钥，不执行 eMMC 安装或写入 bootloader。
+- 已完成镜像内部署包的离线安装验证；未进行 USB / SD 冷启动及实际设备升级测试。
 - 替换诊断阶段的 Kodi 绑定挂载，以原生源码包含界面、遥控及 HDMI 修复。
 
 '''+f'系统源码：{revision}\n离线软件配置：{profile["profile_id"]}\n')
