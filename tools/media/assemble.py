@@ -46,6 +46,12 @@ def assemble(lock, output, cache):
             manifest=ET.parse(addons/entry['id']/'addon.xml').getroot()
             if manifest.get('id')!=entry['id'] or manifest.get('version')!=entry['version']:
                 raise ValueError('Addon identity mismatch')
+        # The verified Zulu ARM64 build ships lib/arm with a local aarch64
+        # alias. Use the canonical directory directly: archives intentionally
+        # contain only regular files and never restore arbitrary symlinks.
+        jre=addons/'tools.jre.zulu/jre/lib'
+        if (jre/'arm').is_dir() and not (jre/'aarch64').exists():
+            (jre/'arm').rename(jre/'aarch64')
         shutil.copytree(ROOT/'profile/defaults',stage,dirs_exist_ok=True)
         (stage/'kodi-defaults.json').write_bytes((ROOT/'profile/kodi-defaults.json').read_bytes())
         manifests={}

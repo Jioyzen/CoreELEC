@@ -15,6 +15,7 @@ mkdir -p "${BUILD_DIR:-$PWD}"
 exec 9>"${BUILD_DIR:-$PWD}/.s905x2-build.lock"
 flock 9
 python3 tools/media/assemble.py --output "$JIOYZEN_MEDIA_PAYLOAD_DIR" --cache "${BUILD_DIR:-$PWD}/media-downloads"
+python3 tools/media/verify_offline.py --bundle "$JIOYZEN_MEDIA_PAYLOAD_DIR"
 python3 -m unittest discover -s tools/media/tests -p 'test_*.py'
 ./tools/s905x2/test.sh
 make image
