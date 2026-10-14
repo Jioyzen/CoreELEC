@@ -47,7 +47,7 @@ jobs:
           if [ "$(git rev-parse HEAD)" != "$before" ]; then
             git push origin HEAD:s905x2-no-fixes
           fi
-          last=$(gh api "repos/${{ github.repository }}/releases" --jq '[.[] | select(.draft == false and .prerelease == false)][0].target_commitish // ""')
+          last=$(gh api "repos/${{ github.repository }}/releases" --jq '[.[] | select(.draft == false and .prerelease == false and (.tag_name | startswith("media-") | not))][0].target_commitish // ""')
           if [ "${{ github.event_name }}" = schedule ] && [ "$(git rev-parse HEAD)" = "$last" ]; then
             echo 'build=false' >> "$GITHUB_OUTPUT"
             exit 0
