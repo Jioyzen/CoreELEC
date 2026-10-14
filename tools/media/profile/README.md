@@ -7,3 +7,27 @@
 - 服务程序预装，Alist / OpenList / CloudDrive2 默认保持当前的“未启用自启动”状态；不复制挂载、登录及管理密码。OpenList 新配置使用 5245 端口，避免与 Alist 的 5244 冲突。
 - 第一次离线部署在 Kodi 启动前完成；原生源码修复替代诊断时的临时绑定挂载，不携带旧 Kodi 二进制替换器。
 - 仅为 S905X2 U212 / 2GB / RTL8822CS 目标构建。刷写 USB / SD 不写 eMMC bootloader，不自动执行 ceemmc。
+
+## 构建和发布
+
+独立开发分支 `s905x2-media-edition`，Actions 工作流 `S905X2 complete media image`。
+基础镜像工作流不变；完整媒体版发布为 `media-日期-提交`，不替换 GitHub latest。
+只有完整发布完成后才更新 `media-channel/update.json`。镜像内标记决定更新通道，
+基础版和媒体版互相拒绝对方的升级包。修改离线内容需先发布固定版本资产并更新 `lock.json`。
+
+```sh
+./tools/media/build.sh
+```
+
+需要 Linux x86_64 CoreELEC 编译环境；默认复用本机工具链缓存，镜像产物保存在
+当前源码工作目录的 `target/s905x2-media-release/`。构建自动验证依赖版本、软件散列、
+DTB、DV、遥控原生修复和更新通道。系统分区为 1GB，首次安装使用 `.img.gz` 刷写
+至少 4GB 的 USB / SD；同媒体版后续更新使用 `.tar`。不把完整媒体升级包安装到
+系统分区较小的基础版；跨版首次安装应刷写新介质。
+
+离线首次部署可用 `deploy.py --bundle <部署包目录> --storage <隔离测试目录>` 验证，
+它不会联网，也不会访问块设备。Kodi 的 optional system addon 清单使预置插件首次启动
+即可启用，后续部署保留已有插件启用状态、较新版本和用户配置。
+
+当前已完成电脑与盒子隔离目录部署验证；没有可刷写 USB / SD，尚未进行真实新镜像
+冷启动、数据分区扩展和实际 `.tar` 升级验证。构建结果与这些硬件测试分开记录。

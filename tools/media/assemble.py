@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import pathlib
+import re
 import shutil
 import tarfile
 import tempfile
@@ -50,11 +51,17 @@ def assemble(lock, output, cache):
         manifests={}
         for p in addons.glob('*/addon.xml'):
             m=ET.parse(p).getroot();manifests[m.get('id')]=m
-        provided=set(lock['system_addons'])|set(manifests)
+        provided=dict(lock['system_addons']);provided.update({aid:m.get('version') for aid,m in manifests.items()})
         for aid,m in manifests.items():
             for d in m.findall('requires/import'):
                 if d.get('optional')!='true' and d.get('addon') not in provided:
                     raise ValueError('Missing offline dependency: '+aid+' -> '+d.get('addon'))
+                if d.get('optional')!='true' and d.get('version'):
+                    def vparts(v):
+                        parts=[int(x) for x in re.findall(r'\d+',v.split('+')[0])]
+                        return tuple(parts+[0]*(8-len(parts)))
+                    if vparts(provided[d.get('addon')]) < vparts(d.get('version')):
+                        raise ValueError('Outdated offline dependency: '+aid+' -> '+d.get('addon'))
         files={}
         for p in sorted(stage.rglob('*')):
             if not p.is_file():continue

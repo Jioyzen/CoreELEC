@@ -23,6 +23,8 @@ def main():
     except (OSError,ValueError):previous={}
     if previous.get('status')=='complete' and previous.get('profile_id')==summary['profile_id']:return
     try:
+        deployment=json.loads((STORAGE/'.cache/jioyzen-media/deployment.json').read_text())
+        to_enable=set(summary['addons']) if deployment.get('fresh_settings') else set(deployment.get('new_addons',[]))
         pending=set(summary['addons']);enabled=set()
         # Dependency modules before scripts/skins: every required local
         # component is already present; this loop never invokes an installer.
@@ -33,7 +35,7 @@ def main():
                 required={n.get('addon') for n in root.findall('requires/import') if n.get('optional')!='true'}
                 if (required & pending)-{aid}:continue
                 details=rpc('Addons.GetAddonDetails',{'addonid':aid,'properties':['enabled']})
-                if not details['addon']['enabled']:
+                if aid in to_enable and not details['addon']['enabled']:
                     if rpc('Addons.SetAddonEnabled',{'addonid':aid,'enabled':True})!='OK':raise ValueError('Enable rejected')
                 pending.remove(aid);enabled.add(aid);progressed=True
             if not pending:break

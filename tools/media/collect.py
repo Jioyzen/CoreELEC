@@ -45,7 +45,7 @@ def collect():
           'artifact':{'name':package.name,'url':'https://github.com/Jioyzen/CoreELEC/releases/download/'+tag+'/'+package.name,
                       'size':package.stat().st_size,'sha256':sha256(package)}}
     (out/'update.json').write_text(json.dumps(feed,indent=2)+'\n')
-    base.update(edition='media',release_tag=tag,profile=profile)
+    base.update(edition='media',release_tag=tag,profile=profile,artifacts={p.name:sha256(p) for p in out.iterdir() if p.name.endswith(('.img.gz','.tar'))})
     (out/'build-manifest.json').write_text(json.dumps(base,ensure_ascii=False,indent=2)+'\n')
     (out/'RELEASE-NOTES.md').write_text('''# Jioyzen 完整播放器固件
 

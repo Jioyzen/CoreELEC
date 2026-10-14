@@ -110,11 +110,13 @@ def deploy(bundle, storage):
                 p=stage.joinpath(*safe_path(name).parts)
                 if not p.is_file() or p.stat().st_size!=entry['size'] or sha256(p)!=entry['sha256']:
                     raise ValueError('Payload file checksum mismatch: '+name)
-            installed=[]
+            installed=[];new_addons=[]
+            fresh_settings=not target_path(storage,'.kodi/userdata/guisettings.xml').exists()
             for aid,version in manifest['addons'].items():
                 if not re.fullmatch(r'[A-Za-z0-9_.-]+',aid):raise ValueError('Unsafe addon ID')
                 source=stage/'.kodi/addons'/aid
                 target=target_path(storage,'.kodi/addons/'+aid)
+                if not target.exists():new_addons.append(aid)
                 if install_addon(source,target,version):installed.append(aid)
             # Standalone runtime directories have no addon.xml. Copy only
             # missing program files; the managers own subsequent upgrades.
@@ -134,9 +136,9 @@ def deploy(bundle, storage):
             for service in ('service.alist','service.openlist','service.clouddrive'):
                 target_path(storage,'.kodi/userdata/addon_data/'+service).mkdir(parents=True,exist_ok=True,mode=0o700)
             config=target_path(storage,'.kodi/userdata/addon_data/service.openlist/config.json')
-            if not config.exists():atomic_json(config,{'listen':{'http_port':5245,'https_port':-1}})
+            if not config.exists():atomic_json(config,{'scheme':{'http_port':5245,'https_port':-1}})
             write_kodi_defaults(storage,json.loads((stage/'kodi-defaults.json').read_text()))
-            report={'status':'complete','profile_id':summary['profile_id'],'installed':installed,
+            report={'status':'complete','profile_id':summary['profile_id'],'installed':installed,'new_addons':new_addons,'fresh_settings':fresh_settings,
                     'completed_at':int(time.time())}
             atomic_json(state,report)
             return report

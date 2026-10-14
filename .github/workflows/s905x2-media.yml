@@ -1,0 +1,59 @@
+name: S905X2 complete media image
+on:
+  push:
+    branches: [s905x2-media-edition]
+    paths:
+      - '.github/workflows/s905x2-media.yml'
+      - 'tools/media/**'
+      - 'projects/Amlogic-ce/**'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish validated media image and advance media update channel
+        type: boolean
+        default: true
+permissions:
+  contents: write
+concurrency:
+  group: s905x2-media-image
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, X64, coreelec-s905x2]
+    timeout-minutes: 1440
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          clean: false
+      - name: Build and validate offline media image
+        run: ./tools/media/build.sh
+      - name: Preserve media artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: s905x2-media-image
+          path: target/s905x2-media-release/*
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish independent media release
+        if: github.event_name == 'push' || inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release_dir=target/s905x2-media-release
+          tag=$(python3 -c "import json; print(json.load(open('target/s905x2-media-release/build-manifest.json'))['release_tag'])")
+          gh release create "$tag" "$release_dir"/* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Jioyzen 完整播放器 $tag" --draft \
+            --notes-file "$release_dir/RELEASE-NOTES.md"
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
+            --draft=false --prerelease=false --latest=false
+          # The immutable release must be complete before advancing this feed.
+          if ! gh release view media-channel --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create media-channel --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" --title 'Jioyzen media update channel' \
+              --prerelease --latest=false --notes '独立媒体版更新索引；基础版使用原更新通道。'
+          fi
+          gh release upload media-channel "$release_dir/update.json" \
+            --repo "$GITHUB_REPOSITORY" --clobber
