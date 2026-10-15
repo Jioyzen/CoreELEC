@@ -1,0 +1,27 @@
+Subject: [PATCH] arm64: dts: enable the S905X2 VIU encoder routing driver
+
+The G12A tree lacks the vout_mux device used by vout_func_update_viu.
+Without a bound mux driver that helper silently returns, leaving the VIU
+on the bootloader encoder. A boot with the HDMI receiver off can start
+in CVBS (ENCI); subsequent progressive HDMI uses ENCP but receives no
+VPP vsync, so DRM page flips time out and the screen remains black.
+
+Add the same generic mux device used by G12B/SM1 to the tested S905X2
+board. The existing kernel driver then selects the encoder from vinfo,
+including interlaced modes, instead of relying on the bootloader route.
+No register constants or timing overrides are needed.
+
+--- a/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
++++ b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
+@@ -5,6 +5,11 @@
+     model = "S905X2 u212-compatible 2GB RTL8822CS";
+     amlogic-dt-id = "g12a_s905x2_u212_2g_rtl8822cs";
+     coreelec-dt-id = "g12a_s905x2_u212_2g_rtl8822cs";
++
++    vout_mux {
++        compatible = "amlogic, vout_mux";
++        status = "okay";
++    };
+ };
+ &{/vpu} { clk_level = <8>; };
+ &{/reserved-memory/linux,meson-fb} {

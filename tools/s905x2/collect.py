@@ -33,6 +33,8 @@ assert run('fdtget','-t','x',str(dtb),'/reserved-memory/linux,meson-fb','reg')==
 assert run('fdtget',str(dtb),'/','amlogic-dt-id')==manifest['dt_id']
 assert run('fdtget',str(dtb),'/','coreelec-dt-id')==manifest['dt_id'], 'upgrade selector differs from custom board'
 assert 'sd-uhs-sdr104' in run('fdtget','-p',str(dtb),'/sd2@ffe05000')
+assert run('fdtget',str(dtb),'/vout_mux','compatible')=='amlogic, vout_mux', 'VIU encoder routing device missing'
+assert run('fdtget',str(dtb),'/vout_mux','status')=='okay', 'VIU encoder routing device disabled'
 kodi=system/'usr/lib/kodi/kodi.bin'
 assert b'amcodec_dv: collect cold dual-layer input' in kodi.read_bytes(), 'native Kodi DV guard missing'
 assert b'amcodec_dv: restore EL parameters' in kodi.read_bytes(), 'native Kodi seek headers missing'
