@@ -113,29 +113,59 @@ def notes(manifest):
 
 两种镜像分别从独立分支构建，适配 S905X2 U212 / 2GB / RTL8822CS。
 
+## 版本区别
+
 | 版本 | 文件名 | 内容 |
 | --- | --- | --- |
 | 普通版 | 不含 `-MEDIA-` | 保留原版 CoreELEC 界面和初始化流程，包含系统、驱动及 Kodi 修复 |
-| 完整版 | 含 `-MEDIA-` | 系统修复加离线插件、皮肤、中文、天气卡片及服务程序，首次启动自动部署 |
+| 完整版 | 含 `-MEDIA-` | 包含普通版修复，以及插件、皮肤、中文、天气卡片和服务程序，首次启动自动部署 |
 
-- **`.img.gz`**：写入 USB / SD 首次安装。完整版系统分区 1GB，建议介质至少 4GB。
-- **`.tar`**：相同版本类型的系统升级。普通版与完整版使用独立更新通道，不能互相直接升级；跨版请重新刷写新介质。
-- 普通版更新索引为本 Release 的 `update.json`；完整版为 `media-update.json`，原有 `media-channel/update.json` 同步指向这里的完整版升级包。
-- 红外驱动修复码表重新加载时的数组越界、设备计数错误与潜在内核崩溃；完整版补齐 DD22 红外映射。
-- 完整版首次进入桌面提供独立 Wi-Fi 连接向导；已有网络或无无线模块时跳过。只触发一次，退出后不常驻，后续断网或重启不再弹出。
-- Wi-Fi 向导已在开发盒子实测首次输入密码、连接、获取 IP、保存凭据与自动连接。天气卡片正常显示。
+## 本版更新
+
+- 修复红外码表重新加载时的数组越界、设备计数错误与潜在内核崩溃；完整版补齐 DD22 红外映射。
+- 完整版首次启动在 Logo 下方显示离线部署阶段、进度条和已用时间，部署完成后进入桌面。
+- 完整版首次进入桌面提供 Wi-Fi 连接向导；已有网络或无无线模块时跳过，连接后刷新天气。向导只在首次启动时触发，后续断网或重启不再弹出。
 - JellyCon 预装但默认禁用，避免未配置服务器时开机弹出扫描。
-- 完整版内置 37 个插件及依赖、Java 和 Alist / OpenList / CloudDrive2 程序；服务默认不自启动，不预设账号密码。
-- 不包含个人 Wi-Fi、媒体库、API 密钥、云盘账号、蓝牙配对或 SSH 主机密钥。不自动安装到 eMMC 或改写 bootloader。
-- 两边都通过编译、原生 DV/红外回归和实际镜像检查；完整版通过断网条件下的部署与重复部署检查。**本轮新镜像尚未重新刷写冷启动；新的红外内核修复尚未做整镜像实机回归。**
+- 完整版内置 37 个插件及依赖、Java 和 Alist / OpenList / CloudDrive2 程序；这些服务默认不自启动。
 
-普通版源码：`{base['source_commit']}`（`s905x2-no-fixes`）
+## 系统基础更新与修复
 
-完整版源码：`{media['source_commit']}`（`s905x2-media-edition`）
+镜像针对已验证的 S905X2（RTL8822CS）盒子，不保证兼容所有 S905X2 或其他型号盒子。
 
-离线软件配置：`{media['profile']['profile_id']}`
+- 跟随官方 CoreELEC `coreelec-22` 分支同步上游代码。
+- 修复板级 DTB 中的 VPU 时钟配置，解决 HDMI 2160p50/60 高刷新率输出花屏。
+- 对齐 U-Boot framebuffer 地址与预留内存，修复启动 Logo 交接阶段花屏。
+- 调整 DTB 的 SDIO 高速模式配置，修复无线接口速率受限。
+- 使用适配 NO 内核的 RTL8822CS 厂商驱动，启用 NAPI/GRO，实测 Wi-Fi 吞吐由 **97.05 Mbps** 提升至 **578.76 Mbps**。
+- 修复 Dolby Vision 模式下部分 Profile 7 FEL 片源快进、快退时可能出现的花屏、色块、绿线，保留完整 DV/FEL 解码与合成。
+- 修复 Kodi GUI 中文长文本换行耗时扫描导致的异常卡顿，解决连续操作海报、设置菜单时卡住数秒的问题。
+- 修复 HDMI 切换信号源后 4K 错误回落到 1080p，以及 HDMI 热插拔后无法恢复信号的问题。
+- 内置本仓库自动更新源，支持检查新正式版本、下载并校验升级包；每周自动同步上游代码、构建和发布更新。
+- 默认使用修复后的专用 DTB，内置已验证的 `dovi.ko`；适配机型刷写后无需手动选择 DTB 或复制模块即可启动。
+- 其他修复详见 [commits 提交记录](https://github.com/Jioyzen/CoreELEC/commits/s905x2-no-fixes)。
 
-下载后使用 `SHA256SUMS` 校验文件；`build-manifest.json` 记录两套源码与产物散列。
+## 下载与升级
+
+- **`.img.gz`**：首次刷写 U 盘或 SD 卡使用。完整版系统分区为 1GB，建议使用至少 4GB 的介质。
+- **`.tar`**：系统升级包，适用于同一版本类型升级。普通版与完整版使用独立更新通道，不能互相直接升级；跨版请重新刷写介质。
+- 同一适配盒子的官方 **CoreELEC 22 Amlogic-no / aarch64** 可迁移至普通修复版。将普通版 `.tar` 复制到 `/storage/.update/` 后重启，保留用户配置，并使用本镜像的专用 DTB；不适用于 Amlogic-ng 跨架构升级。
+- 从首版尚未内置更新源的镜像迁移，需要手动安装本次升级包一次，之后即可使用系统“检查更新”。
+- 使用过旧运行时补丁的系统，应清理残留的 `LD_PRELOAD`、无线驱动替换服务和 DTB 覆盖配置；详见 [仓库文档](https://github.com/Jioyzen/CoreELEC/blob/s905x2-no-fixes/S905X2.md)。
+- `SHA256SUMS` 提供产物校验，`build-manifest.json` 记录两套源码版本与产物散列。
+- 普通版更新索引为 `update.json`，完整版为 `media-update.json`；原有 `media-channel/update.json` 同步指向本 Release 的完整版升级包。
+
+## 每周构建
+
+镜像每周日北京时间 **03:00** 由 GitHub Actions 自动同步上游并构建；两边源码均无变化时跳过。构建、测试和产物检查通过后，普通版与完整版在同一个 Release 中正式发布；合并冲突时自动停止。
+
+首版已实机验证 HDMI、Wi-Fi 和 DV seek 正常；后续版本的正式发布不代表每次都经过人工实机回归。
+
+## 源码版本
+
+| 版本 | 分支 | 提交 |
+| --- | --- | --- |
+| 普通版 | `s905x2-no-fixes` | [`{base['source_commit'][:8]}`](https://github.com/Jioyzen/CoreELEC/commit/{base['source_commit']}) |
+| 完整版 | `s905x2-media-edition` | [`{media['source_commit'][:8]}`](https://github.com/Jioyzen/CoreELEC/commit/{media['source_commit']}) |
 '''
 
 
