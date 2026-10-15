@@ -5,6 +5,8 @@
 - Kodi 原生设置和遥控配置采用白名单；不复制硬件 EDID、固定显示模式或音频设备名。
 - 插件更新默认通知，由用户决定，避免同 ID 官方语言包自动覆盖维护版；Jioyzen 仓库保留安装和更新入口。
 - 服务程序预装，Alist / OpenList / CloudDrive2 默认保持当前的“未启用自启动”状态；不复制挂载、登录及管理密码。OpenList 新配置使用 5245 端口，避免与 Alist 的 5244 冲突。
+- JellyCon（Jellyfin 客户端）预装但默认禁用，避免未配置服务器时开机弹出局域网扫描；用户可按需启用。
+- 红外预置通用 ff00 和本机遥控 DD22 两套码表，由 CoreELEC 原生 remote-config 加载；不依赖额外的 CEBOX 服务。
 - 第一次离线部署在 Kodi 启动前完成；原生源码修复替代诊断时的临时绑定挂载，不携带旧 Kodi 二进制替换器。
 - 仅为 S905X2 U212 / 2GB / RTL8822CS 目标构建。刷写 USB / SD 不写 eMMC bootloader，不自动执行 ceemmc。
 

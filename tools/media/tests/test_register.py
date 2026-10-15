@@ -27,6 +27,18 @@ class RegisterTests(unittest.TestCase):
             self.assertEqual(addons[1].text,'script.demo')
             self.assertEqual(addons[1].get('optional'),'true')
 
+    def test_disabled_addon_is_installed_but_never_started_by_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=pathlib.Path(tmp);b=root/'bundle';b.mkdir()
+            summary=bundle(b)
+            import json
+            summary.update(addons={'script.demo':'1.0.0'},default_disabled_addons=['script.demo'])
+            (b/'profile.json').write_text(json.dumps(summary))
+            path=root/'system/usr/share/kodi/system/addon-manifest.xml';path.parent.mkdir(parents=True)
+            path.write_text('<addons><addon>skin.estuary</addon><addon optional="true">script.demo</addon></addons>')
+            register.register(b,root/'system');register.register(b,root/'system')
+            self.assertEqual([n.text for n in ET.parse(path).getroot().findall('addon')],['skin.estuary'])
+
     def test_profile_identity_mismatch_prevents_registration(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=pathlib.Path(tmp);b=root/'bundle';b.mkdir()

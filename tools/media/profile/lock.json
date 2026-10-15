@@ -124,5 +124,8 @@
     "xbmc.metadata": "2.1.0",
     "xbmc.python": "3.1.0",
     "xbmc.webinterface": "1.0.0"
-  }
+  },
+  "default_disabled_addons": [
+    "plugin.video.jellycon"
+  ]
 }

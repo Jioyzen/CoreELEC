@@ -25,6 +25,9 @@ def main():
     try:
         deployment=json.loads((STORAGE/'.cache/jioyzen-media/deployment.json').read_text())
         to_enable=set(summary['addons']) if deployment.get('fresh_settings') else set(deployment.get('new_addons',[]))
+        disabled=set(summary.get('default_disabled_addons',[]))
+        to_disable=disabled & to_enable
+        to_enable-=disabled
         pending=set(summary['addons']);enabled=set()
         # Dependency modules before scripts/skins: every required local
         # component is already present; this loop never invokes an installer.
@@ -37,7 +40,10 @@ def main():
                 details=rpc('Addons.GetAddonDetails',{'addonid':aid,'properties':['enabled']})
                 if aid in to_enable and not details['addon']['enabled']:
                     if rpc('Addons.SetAddonEnabled',{'addonid':aid,'enabled':True})!='OK':raise ValueError('Enable rejected')
-                pending.remove(aid);enabled.add(aid);progressed=True
+                if aid in to_disable and details['addon']['enabled']:
+                    if rpc('Addons.SetAddonEnabled',{'addonid':aid,'enabled':False})!='OK':raise ValueError('Disable rejected')
+                if aid in to_enable or (details['addon']['enabled'] and aid not in to_disable):enabled.add(aid)
+                pending.remove(aid);progressed=True
             if not pending:break
             if not progressed:raise ValueError('Unresolved addon dependency graph')
         # Fresh installations already received these values before Kodi
@@ -45,7 +51,7 @@ def main():
         xbmc.executebuiltin('Weather.Refresh')
         if rpc('Settings.GetSettingValue',{'setting':'weather.addon'}).get('value')=='weather.jioyzen':
             xbmc.executebuiltin('RunScript(/storage/.kodi/addons/weather.jioyzen/default.py)')
-        report={'status':'complete','profile_id':summary['profile_id'],'addons':sorted(enabled),'time':int(time.time())}
+        report={'status':'complete','profile_id':summary['profile_id'],'addons':sorted(enabled),'disabled_by_default':sorted(disabled),'time':int(time.time())}
     except (OSError,ValueError,KeyError,ET.ParseError) as error:
         report={'status':'failed','profile_id':summary['profile_id'],'error':type(error).__name__}
         xbmc.log('[Jioyzen Media] First-use activation failed: '+str(error),xbmc.LOGERROR)

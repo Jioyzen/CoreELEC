@@ -79,7 +79,7 @@ def assemble(lock, output, cache):
             files[rel]={'sha256':sha256(p),'size':p.stat().st_size,'mode':0o755 if p.stat().st_mode&0o111 else 0o644}
         profile={'schema':1,'edition':'media','board_id':'g12a_s905x2_u212_2g_rtl8822cs',
                  'addons':{aid:m.get('version') for aid,m in sorted(manifests.items())},
-                 'files':files,'sources':lock}
+                 'files':files,'sources':lock,'default_disabled_addons':lock.get('default_disabled_addons',[])}
         encoded=json.dumps(profile,ensure_ascii=False,sort_keys=True,indent=2).encode()+b'\n'
         (stage/'payload-manifest.json').write_bytes(encoded)
         profile_id=hashlib.sha256(encoded).hexdigest()
@@ -93,7 +93,8 @@ def assemble(lock, output, cache):
                         info.mode=0o755 if p.stat().st_mode&0o111 else 0o644
                         with p.open('rb') as source:tar.addfile(info,source)
         summary={'schema':1,'edition':'media','profile_id':profile_id,'payload_sha256':sha256(archive),
-                 'expanded_size':sum(v['size'] for v in files.values()),'addons':profile['addons']}
+                 'expanded_size':sum(v['size'] for v in files.values()),'addons':profile['addons'],
+                 'default_disabled_addons':profile['default_disabled_addons']}
         (output/'profile.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2)+'\n')
         print('Offline payload:',len(manifests),'addons;',summary['expanded_size'],'expanded bytes')
         return summary

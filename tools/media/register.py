@@ -25,6 +25,8 @@ def register(bundle, system):
                 bundled[path.parts[2]]=ET.fromstring(tar.extractfile(item).read())
     if {aid:m.get('version') for aid,m in bundled.items()}!=summary['addons']:
         raise ValueError('Bundle addon manifest mismatch')
+    disabled=set(summary.get('default_disabled_addons',[]))
+    if disabled-set(bundled):raise ValueError('Unknown disabled addon ID')
     provided.update(summary['addons'])
     for aid,m in bundled.items():
         for dep in m.findall('requires/import'):
@@ -34,8 +36,10 @@ def register(bundle, system):
                 raise ValueError('Incompatible image dependency: '+aid+' -> '+did)
     path=system/'usr/share/kodi/system/addon-manifest.xml'
     tree=ET.parse(path);root=tree.getroot();known={n.text for n in root.findall('addon')}
+    for node in list(root.findall('addon')):
+        if node.text in disabled and node.get('optional')=='true':root.remove(node)
     for aid in sorted(bundled):
-        if aid not in known:ET.SubElement(root,'addon',optional='true').text=aid
+        if aid not in known and aid not in disabled:ET.SubElement(root,'addon',optional='true').text=aid
     tree.write(path,encoding='utf-8',xml_declaration=True)
     print('Registered',len(bundled),'offline addons; image dependencies verified')
 

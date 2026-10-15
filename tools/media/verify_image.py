@@ -48,7 +48,9 @@ def verify_image(release, toolchain):
         summary=json.loads((bundle/'profile.json').read_text())
         system_addons=ET.parse(extracted/'usr/share/kodi/system/addon-manifest.xml').getroot()
         ids={n.text for n in system_addons.findall('addon')}
-        assert set(summary['addons'])<=ids, 'First-start registration missing'
+        disabled=set(summary.get('default_disabled_addons',[]))
+        assert (set(summary['addons'])-disabled)<=ids, 'First-start registration missing'
+        assert not disabled & ids, 'Disabled addon registered for first-start activation'
         # Use the deployment code extracted from SYSTEM, not just the source tree.
         import importlib.util
         spec=importlib.util.spec_from_file_location('image_deploy',extracted/'usr/lib/jioyzen-media/deploy.py')
