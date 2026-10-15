@@ -12,7 +12,7 @@ on:
       publish:
         description: Publish image and upgrade package to Releases
         type: boolean
-        default: true
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -64,7 +64,7 @@ jobs:
           path: target/s905x2-release/*
           retention-days: 14
       - name: Publish release
-        if: steps.sync.outputs.build == 'true' && (github.event_name == 'schedule' || inputs.publish)
+        if: steps.sync.outputs.build == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -41,6 +41,8 @@ updater=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/s9
 assert updater.exists() and b'latest/download/update.json' in updater.read_bytes(), 'native release updater missing'
 settings=system/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/modules/updates.pyc'
 assert b'verify_download' in settings.read_bytes() and b's905x2_feed' in settings.read_bytes(), 'upgrade hash validation missing'
+ir_modules=list(system.rglob('meson-remote.ko'))
+assert len(ir_modules)==1 and b'ir_map_layout=bounded-v1' in ir_modules[0].read_bytes(), 'native IR map allocation/reload fix missing'
 assert b'DT_ID="g12a_s905x2_u212_2g_rtl8822cs"' in (system/'usr/share/bootloader/update.sh').read_bytes(), 'official NO migration selector missing'
 # Select this build's image/tar by shared stem, excluding previous release copies.
 images=sorted(target.glob('*Amlogic-no.aarch64*Generic.img.gz'),key=lambda p:p.stat().st_mtime)

@@ -35,7 +35,7 @@ def verify(bundle):
         assert not (storage/'.kodi/userdata/Thumbnails').exists()
     report={'schema':1,'profile_id':summary['profile_id'],'payload_sha256':sha256(bundle/'payload.tar.gz'),
             'addon_count':len(actual),'fresh_offline_deployment':'passed','repeated_deployment':'passed',
-            'network_forbidden':True,'hardware_cold_boot':'not_tested_no_removable_media'}
+            'network_forbidden':True,'hardware_cold_boot':'not_tested_for_this_build'}
     (bundle/'offline-validation.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps(report));return report
 
