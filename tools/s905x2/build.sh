@@ -6,6 +6,7 @@ cd "$(dirname "$0")/../.."
 if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/coreelec-s905x2/build.env" ]; then
   source "${XDG_CONFIG_HOME:-$HOME/.config}/coreelec-s905x2/build.env"
 fi
+unset JIOYZEN_MEDIA_EDITION JIOYZEN_MEDIA_PAYLOAD_DIR
 export PROJECT=Amlogic-ce DEVICE=Amlogic-no ARCH=aarch64 S905X2_BOARD=yes
 export THREADCOUNT=${THREADCOUNT:-2} CONCURRENCY_MAKE_LEVEL=${CONCURRENCY_MAKE_LEVEL:-3} CONCURRENCY_LOAD=${CONCURRENCY_LOAD:-4}
 export BUILDER_NAME=Jioyzen BUILDER_VERSION=s905x2-fixes

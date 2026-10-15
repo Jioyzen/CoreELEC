@@ -2,6 +2,7 @@
 """Validate compiled board artifacts and collect a flash image and update tar."""
 import hashlib,json,os,pathlib,shutil,subprocess,tarfile,datetime
 from release_metadata import write_metadata
+from image_validation import verify_base_system
 root=pathlib.Path(__file__).resolve().parents[2]
 target=pathlib.Path(os.environ.get('TARGET_DIR',root/'target'))
 build=pathlib.Path(os.environ.get('BUILD_DIR',root))/'build.CoreELEC-Amlogic-no.aarch64-22'
@@ -69,6 +70,10 @@ with tempfile.TemporaryDirectory(prefix='ce-image-check-') as tmp:
   dest=pathlib.Path(tmp)/name
   subprocess.run([mcopy,'-i',str(raw)+'@@'+str(start),'::/'+name,str(dest)],check=True)
   assert sha(dest)==sha(expected),name+' boot partition mismatch'
+ if os.environ.get('JIOYZEN_MEDIA_EDITION')!='yes':
+  flash_system=pathlib.Path(tmp)/'SYSTEM'
+  subprocess.run([mcopy,'-i',str(raw)+'@@'+str(start),'::/SYSTEM',str(flash_system)],check=True)
+  verify_base_system(flash_system,update,out/'offline-image-validation.json',build/'toolchain')
 for label,path in [('linux','projects/Amlogic-ce/packages/linux/package.mk'),('common_drivers','projects/Amlogic-ce/packages/linux-drivers/amlogic/common_drivers/package.mk'),('media_modules','projects/Amlogic-ce/packages/linux-drivers/amlogic/media_modules-aml/package.mk'),('kodi','projects/Amlogic-ce/packages/mediacenter/kodi/package.mk')]:
  import re
  manifest[label+'_commit']=re.search(r'^PKG_VERSION="([^"]+)"', (root/path).read_text(),re.M)[1]

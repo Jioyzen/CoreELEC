@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Verify the actual flash image SYSTEM and run its embedded installer offline."""
 import argparse
+import configparser
 import gzip
 import json
 import pathlib
@@ -54,6 +55,11 @@ def verify_image(release, toolchain):
         ET.parse(wifi/'resources/skins/Default/1080i/wifi.xml')
         assert (wifi/'start.sh').stat().st_mode & 0o111, 'Wi-Fi startup script is not executable'
         assert (extracted/'usr/lib/systemd/system/kodi.target.wants/jioyzen-media-wifi.service').is_symlink(), 'Wi-Fi startup not enabled'
+        unit=configparser.ConfigParser(interpolation=None)
+        unit.read(extracted/'usr/lib/systemd/system/jioyzen-media-wifi.service')
+        assert unit['Service']['Type']=='oneshot' and unit['Service'].get('RemainAfterExit','no')=='no', 'Wi-Fi service must not remain active'
+        assert unit['Unit']['ConditionPathExists']=='!/storage/.cache/jioyzen-media/wifi-setup.json', 'Wi-Fi first-start guard missing'
+        assert 'PartOf' not in unit['Unit'] and unit['Service'].get('Restart','no')=='no', 'Wi-Fi service must not restart with Kodi'
         summary=json.loads((bundle/'profile.json').read_text())
         system_addons=ET.parse(extracted/'usr/share/kodi/system/addon-manifest.xml').getroot()
         ids={n.text for n in system_addons.findall('addon')}
@@ -71,7 +77,7 @@ def verify_image(release, toolchain):
             report=verify(bundle)
         finally:verify_offline.deploy=original
         report.update(flash_image_system_matches_update=True,system_partition_bytes=sectors*512,
-                      system_sha256=sha256(system),embedded_installer='passed',first_start_registration='passed',wifi_wizard='embedded and enabled')
+                      system_sha256=sha256(system),embedded_installer='passed',first_start_registration='passed',wifi_wizard='embedded and enabled',wifi_first_start_only=True)
         (release/'offline-image-validation.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report))
 

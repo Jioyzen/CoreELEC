@@ -114,7 +114,7 @@ class WifiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             if existing:
-                (root/'wifi-setup.json').write_text('{"reason":"deferred"}')
+                (root/'wifi-setup.json').write_text(json.dumps({'reason': existing if isinstance(existing, str) else 'deferred'}))
             with patch.object(self.wizard, 'CACHE', root), patch.object(self.wizard, 'MARKER', root/'wifi-setup.json'), \
                  patch.object(self.wizard, 'Backend', return_value=fake_backend), \
                  patch.object(self.wizard, 'MONITOR', types.SimpleNamespace(waitForAbort=wait)), \
@@ -140,13 +140,13 @@ class WifiTests(unittest.TestCase):
     def test_actual_startup_opens_once_when_network_is_needed(self):
         shown, marker, elapsed = self.startup({'wifi': True})
         self.assertEqual(shown, [True])
-        self.assertIsNone(marker)
+        self.assertEqual(marker['reason'], 'started')
         self.assertEqual(elapsed, 8)
 
-    def test_unavailable_daemon_does_not_mark_setup_complete(self):
+    def test_unavailable_daemon_consumes_first_start_without_claiming_success(self):
         shown, marker, _ = self.startup({'error': 'failed'})
         self.assertFalse(shown)
-        self.assertIsNone(marker)
+        self.assertEqual(marker['reason'], 'started')
 
     def test_restart_respects_completed_or_deferred_setup(self):
         shown, marker, elapsed = self.startup({'wifi': True}, existing=True)
@@ -154,10 +154,18 @@ class WifiTests(unittest.TestCase):
         self.assertEqual(elapsed, 0)
         self.assertEqual(marker['reason'], 'deferred')
 
+    def test_subsequent_offline_boot_never_reopens_even_after_interruption(self):
+        for reason in ('started', 'connected', 'deferred', 'no_wifi', 'already_connected'):
+            with self.subTest(reason=reason):
+                shown, marker, elapsed = self.startup({'wifi': True, 'connected': ''}, existing=reason)
+                self.assertFalse(shown)
+                self.assertEqual(elapsed, 0)
+                self.assertEqual(marker['reason'], reason)
+
     def test_startup_never_forces_home_or_opens_over_another_window(self):
         shown, marker, _ = self.startup({'wifi': True}, home=False)
         self.assertFalse(shown)
-        self.assertIsNone(marker)
+        self.assertEqual(marker['reason'], 'started')
 
     def test_background_status_does_not_disable_list_or_reset_focus(self):
         dialog = object.__new__(self.wizard.WifiDialog)

@@ -2,11 +2,10 @@
 Description=First-desktop Wi-Fi connection wizard
 After=kodi.service jioyzen-media-activate.service
 Requires=kodi.service
-PartOf=kodi.service
+ConditionPathExists=!/storage/.cache/jioyzen-media/wifi-setup.json
 [Service]
 Type=oneshot
 ExecStart=/usr/lib/jioyzen-media/wifi/start.sh
 TimeoutStartSec=130
-RemainAfterExit=yes
 [Install]
 WantedBy=kodi.target

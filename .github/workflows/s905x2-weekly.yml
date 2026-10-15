@@ -1,4 +1,4 @@
-name: S905X2 weekly image
+name: S905X2 ordinary and complete images
 on:
   schedule:
     # Sunday 03:00 Asia/Shanghai (Saturday 19:00 UTC).
@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       sync_upstream:
-        description: Merge the latest official coreelec-22 before building
+        description: Sync official CoreELEC into base, then base fixes into media branch
         type: boolean
         default: false
       publish:
-        description: Publish image and upgrade package to Releases
+        description: Publish BOTH validated editions in ONE Release and update their feeds
         type: boolean
         default: false
 permissions:
@@ -20,7 +20,6 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build:
-    # Registered persistent runner; retains the CoreELEC toolchain and sources.
     runs-on: [self-hosted, Linux, X64, coreelec-s905x2]
     timeout-minutes: 1440
     steps:
@@ -29,8 +28,8 @@ jobs:
           ref: s905x2-no-fixes
           fetch-depth: 0
           clean: false
-      - name: Synchronize upstream
-        id: sync
+      - name: Pin the two source branches
+        id: sources
         env:
           GH_TOKEN: ${{ github.token }}
           SYNC_UPSTREAM: ${{ github.event_name == 'schedule' || inputs.sync_upstream }}
@@ -38,42 +37,86 @@ jobs:
           set -euo pipefail
           git config user.name 'S905X2 build bot'
           git config user.email 's905x2-build@users.noreply.github.com'
-          before=$(git rev-parse HEAD)
           if [ "$SYNC_UPSTREAM" = true ]; then
             git fetch https://github.com/CoreELEC/CoreELEC.git coreelec-22
             git merge --no-edit FETCH_HEAD
-          fi
-          ./tools/s905x2/test.sh
-          if [ "$(git rev-parse HEAD)" != "$before" ]; then
+            ./tools/s905x2/test.sh
             git push origin HEAD:s905x2-no-fixes
           fi
-          last=$(gh api "repos/${{ github.repository }}/releases" --jq '[.[] | select(.draft == false and .prerelease == false and (.tag_name | startswith("media-" ) | not))][0].target_commitish // ""')
-          if [ "${{ github.event_name }}" = schedule ] && [ "$(git rev-parse HEAD)" = "$last" ]; then
-            echo 'build=false' >> "$GITHUB_OUTPUT"
-            exit 0
+          base_sha=$(git rev-parse HEAD)
+          git fetch origin s905x2-media-edition
+          media_sha=$(git rev-parse FETCH_HEAD)
+          if [ "$SYNC_UPSTREAM" = true ]; then
+            git switch --detach "$media_sha"
+            git merge --no-edit "$base_sha"
+            ./tools/s905x2/test.sh
+            python3 -m unittest discover -s tools/media/tests -p 'test_*.py'
+            git push origin HEAD:s905x2-media-edition
+            media_sha=$(git rev-parse HEAD)
+            git switch --detach "$base_sha"
+          fi
+          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
+          echo "media_sha=$media_sha" >> "$GITHUB_OUTPUT"
+          state=$(mktemp -d "$RUNNER_TEMP/s905x2-dual.XXXXXX")
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          cp tools/s905x2/combine_release.py "$state/combine_release.py"
+          # Legacy single-edition releases lack editions, so rebuild once.
+          if [ "${{ github.event_name }}" = schedule ] && gh release download \
+              --repo "$GITHUB_REPOSITORY" --pattern build-manifest.json --output "$state/previous.json"; then
+            if python3 - "$state/previous.json" "$base_sha" "$media_sha" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          editions=data.get('editions',{})
+          sys.exit(0 if editions.get('base',{}).get('source_commit')==sys.argv[2] and editions.get('media',{}).get('source_commit')==sys.argv[3] else 1)
+          PY
+            then
+              echo 'build=false' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
           echo 'build=true' >> "$GITHUB_OUTPUT"
-      - name: Build and validate image
-        if: steps.sync.outputs.build == 'true'
-        run: ./tools/s905x2/build.sh
-      - name: Preserve build artifacts
-        if: steps.sync.outputs.build == 'true'
-        uses: actions/upload-artifact@v4
+      - uses: actions/checkout@v4
+        if: steps.sources.outputs.build == 'true'
         with:
-          name: s905x2-image
-          path: target/s905x2-release/*
-          retention-days: 14
-      - name: Publish release
-        if: steps.sync.outputs.build == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish
+          ref: ${{ steps.sources.outputs.base_sha }}
+          fetch-depth: 0
+          clean: false
+      - name: Build and validate ordinary image
+        if: steps.sources.outputs.build == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATE: ${{ steps.sources.outputs.state }}
         run: |
           set -euo pipefail
-          tag=$(python3 -c "import json; print(json.load(open('target/s905x2-release/build-manifest.json'))['release_tag'])")
-          gh release create "$tag" target/s905x2-release/* \
-            --repo "${{ github.repository }}" --target "$(git rev-parse HEAD)" \
-            --title "S905X2 CoreELEC NO $tag" --draft \
-            --notes-file target/s905x2-release/RELEASE-NOTES.md
-          # Publish only after every asset (including update.json) is uploaded.
-          gh release edit "$tag" --repo "${{ github.repository }}" \
-            --draft=false --prerelease=false --latest
+          ./tools/s905x2/build.sh
+          cp -a target/s905x2-release "$RELEASE_STATE/base"
+      - uses: actions/checkout@v4
+        if: steps.sources.outputs.build == 'true'
+        with:
+          ref: ${{ steps.sources.outputs.media_sha }}
+          fetch-depth: 0
+          clean: false
+      - name: Build and validate complete media image
+        if: steps.sources.outputs.build == 'true'
+        env:
+          RELEASE_STATE: ${{ steps.sources.outputs.state }}
+        run: |
+          set -euo pipefail
+          ./tools/media/build.sh
+          cp -a target/s905x2-media-release "$RELEASE_STATE/media"
+          python3 "$RELEASE_STATE/combine_release.py" \
+            --base "$RELEASE_STATE/base" --media "$RELEASE_STATE/media" --output "$RELEASE_STATE/release"
+      - name: Preserve both editions and validation reports
+        if: steps.sources.outputs.build == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: s905x2-ordinary-and-complete
+          path: ${{ steps.sources.outputs.state }}/release/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+      - name: Publish both editions in one Release
+        if: steps.sources.outputs.build == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_STATE: ${{ steps.sources.outputs.state }}
+        run: python3 "$RELEASE_STATE/combine_release.py" --output "$RELEASE_STATE/release" --publish

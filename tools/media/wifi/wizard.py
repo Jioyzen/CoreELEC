@@ -247,6 +247,11 @@ def main():
         preview = '--preview' in sys.argv
         if MARKER.exists() and not preview:
             return
+        if not preview:
+            # Consume the first-start opportunity before any wait, network
+            # check or UI work. Errors, an interrupted dialog or a later loss
+            # of networking must never prompt on subsequent boots.
+            remember('started')
         backend = Backend()
         try:
             # EventServer can be ready before the skin. Never interrupt a movie
@@ -267,8 +272,8 @@ def main():
                             return
                     state = future.result()
                 if state.get('error'):
-                    # A late ConnMan startup is transient. Do not persist an
-                    # unavailable daemon as "no wireless hardware".
+                    # Retry only within this first-start invocation. A late
+                    # daemon must not cause a popup on a subsequent boot.
                     if time.monotonic() >= deadline or MONITOR.waitForAbort(2):
                         return
                     continue

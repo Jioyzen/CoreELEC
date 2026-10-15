@@ -19,6 +19,7 @@ def release_notes(revision):
 - 调整 DTB 的 SDIO 高速模式配置，修复无线接口速率受限。
 - 使用适配 NO 内核的 RTL8822CS 厂商驱动，启用 NAPI/GRO 并调整省电参数；实测 Wi-Fi 吞吐由约 **97.05 Mbps** 提升至最高 **578.76 Mbps**。实际速度取决于路由器、频段和信号环境。
 - 修复 Dolby Vision 模式下部分 Profile 7 FEL 片源快进、快退和从保存进度续播时可能出现的花屏、色块、绿线；保留完整 DV/FEL 解码与合成。
+- 修复红外码表重新加载时的输入设备数组越界、重复计数和注册顺序问题，避免遥控失效及潜在内核崩溃。
 - 默认使用修复后的专用 DTB，内置已验证的 `dovi.ko`；适配机型刷写后无需手动选择 DTB 或复制模块即可启动。
 - 内置本仓库自动更新源：检查新正式版本、下载并校验升级包，重启时使用 CoreELEC 原有升级机制安装。CEC 保持官方逻辑。
 
@@ -30,7 +31,7 @@ def release_notes(revision):
 - 使用过旧运行时补丁的系统，应清理残留的 `LD_PRELOAD`、无线驱动替换服务和 DTB 覆盖配置；详见仓库文档。
 - `SHA256SUMS` 提供产物校验，`build-manifest.json` 记录源码版本，`update.json` 供系统更新程序使用。
 
-镜像每周日北京时间 **03:00** 由 GitHub Actions 自动同步上游并构建；源码无变化时跳过。构建、测试和产物检查通过后自动正式发布。首版已实机验证 HDMI、Wi-Fi 和 DV seek 正常；后续版本的正式发布不代表每次都经过人工实机回归。
+统一 Actions 每周日北京时间 **03:00** 同步上游并构建普通版与完整版；两边源码均无变化时跳过。默认保存测试产物，手动运行勾选 publish 后，将两套镜像放入同一个正式 Release。首版已实机验证 HDMI、Wi-Fi 和 DV seek 正常；后续版本的正式发布不代表每次都经过整镜像人工实机回归。
 
 源码 commit：`{revision}`
 '''
@@ -45,6 +46,7 @@ def write_metadata(out, version, revision, release_tag):
     digest = hashlib.sha256(package.read_bytes()).hexdigest()
     feed = {
         'schema': 1,
+        'edition': 'base',
         'board_id': 'g12a_s905x2_u212_2g_rtl8822cs',
         'architecture': 'Amlogic-no.aarch64',
         'version': version,

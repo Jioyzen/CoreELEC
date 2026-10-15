@@ -13,9 +13,11 @@
 
 ## 构建和发布
 
-独立开发分支 `s905x2-media-edition`，Actions 工作流 `S905X2 complete media image`。
-基础镜像工作流不变；完整媒体版发布为 `media-日期-提交`，不替换 GitHub latest。
-只有完整发布完成后才更新 `media-channel/update.json`。镜像内标记决定更新通道，
+独立开发分支 `s905x2-media-edition`；普通版保留在 `s905x2-no-fixes`，不合并完整媒体内容。
+统一工作流 `S905X2 ordinary and complete images` 固定两个分支提交后依次构建，两种
+镜像的 `.img.gz` 和 `.tar` 放入同一个正式 Release。文件名含 `-MEDIA-` 的为完整版。
+普通版使用 Release 内的 `update.json`；完整版使用 `media-update.json`，发布成功后
+才将它复制到旧镜像兼容的 `media-channel/update.json`。镜像内标记决定更新通道，
 基础版和媒体版互相拒绝对方的升级包。修改离线内容需先发布固定版本资产并更新 `lock.json`。
 
 ```sh
@@ -35,18 +37,21 @@ DTB、DV、遥控原生修复和更新通道。系统分区为 1GB，首次安�
 2026-10-15 已实测首版 USB 首启扩容、离线部署和进入桌面，首轮部署约3分50秒。
 后续构建仍独立记录离线验证与冷启动验证状态；实际 `.tar` 升级尚未验证。
 天气需要网络连接，首次 Wi-Fi 向导帮助配置用户自己的网络；镜像不包含 Wi-Fi 账号。
-构建默认只保存 Actions 测试产物；发布与更新通道变更须另行确认。
+定时构建默认只保存 Actions 测试产物；手动运行勾选 `publish` 后才正式发布并更新通道。
 
 ## Wi-Fi 向导
 
-`jioyzen-media-wifi.service` 在 Kodi 就绪后运行 `/usr/lib/jioyzen-media/wifi/wizard.py`。
+`jioyzen-media-wifi.service` 是 `Type=oneshot` 一次性启动服务，在 Kodi 就绪后运行
+`/usr/lib/jioyzen-media/wifi/wizard.py`；启动器退出后服务回到 inactive，不常驻、不随
+Kodi 重启而重启、不在后台监听断网。systemd 根据首次触发标记跳过后续启动。
 界面使用独立圆角深色对话框，网络扫描、D-Bus 认证和 DHCP 等待在后台完成；
 不依赖 Kodi 的 HTTP 服务、不调用外网来判断连接。连接成功以 ConnMan `ready/online`
 为准；附近网络包含信号和加密提示。密码通过标准输入传入独立进程，再由 ConnMan
 agent 传递给系统网络服务，不作为命令行参数、不写入向导日志和完成标记。
 
 已联网时不抢占界面；启动时等待无线设备与自动连接稳定，无无线模块时不弹窗。
-可“稍后设置”，此后通过 CoreELEC 网络设置连接；完成选择记录于
-`/storage/.cache/jioyzen-media/wifi-setup.json`，升级和 Kodi 重启不重复打扰。
+可“稍后设置”，此后通过 CoreELEC 网络设置连接；首次触发即记录于
+`/storage/.cache/jioyzen-media/wifi-setup.json`，包括异常、中断、无网卡、已有网络等
+路径，升级、系统重启和 Kodi 重启均不再自动弹出，后续断网也不触发。
 调试预览可运行 `RunScript(/usr/lib/jioyzen-media/wifi/wizard.py,--preview)`。
 不在出厂配置中携带此标记或任何网络凭据。

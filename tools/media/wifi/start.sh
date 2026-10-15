@@ -1,5 +1,6 @@
 #!/bin/sh
-# Run once per Kodi session; wizard.py owns the durable first-start decision.
+# First installation only. The wizard claims the attempt before checking the
+# network, including skip/error paths; future boots never start it again.
 set -eu
 state=/storage/.cache/jioyzen-media
 mkdir -p "$state"
