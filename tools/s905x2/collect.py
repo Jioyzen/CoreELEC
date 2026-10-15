@@ -35,6 +35,10 @@ assert run('fdtget',str(dtb),'/','coreelec-dt-id')==manifest['dt_id'], 'upgrade 
 assert 'sd-uhs-sdr104' in run('fdtget','-p',str(dtb),'/sd2@ffe05000')
 assert run('fdtget',str(dtb),'/vout_mux','compatible')=='amlogic, vout_mux', 'VIU encoder routing device missing'
 assert run('fdtget',str(dtb),'/vout_mux','status')=='okay', 'VIU encoder routing device disabled'
+led_gpio=run('fdtget','-t','x',str(dtb),'/gpioleds/sys_led','gpios').split()
+assert len(led_gpio)==3 and led_gpio[1:]==['b','0'], 'power LED must use GPIOAO_11 active-high'
+assert run('fdtget',str(dtb),'/gpioleds/sys_led','default-state')=='on', 'power LED boot state missing'
+assert run('fdtget',str(dtb),'/gpioleds/sys_led','linux,default-trigger')=='default-on', 'power LED trigger differs'
 assert run('fdtget','-t','x',str(dtb),'/bl30_manager','coreelec,legacy-nec-wakeup')=='dcdd22', 'OEM NEC wake-up default missing'
 bl30_mbox=run('fdtget','-t','x',str(dtb),'/bl30_manager','mboxes').split()
 devfs_mbox=run('fdtget','-t','x',str(dtb),'/mbox_devfs','mboxes').split()
