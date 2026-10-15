@@ -11,7 +11,7 @@ on:
       publish:
         description: Publish validated media image and advance media update channel
         type: boolean
-        default: true
+        default: false
 permissions:
   contents: write
 concurrency:
@@ -37,7 +37,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Publish independent media release
-        if: github.event_name == 'push' || inputs.publish
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
