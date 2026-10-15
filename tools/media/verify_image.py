@@ -40,11 +40,20 @@ def verify_image(release, toolchain):
         extracted=root/'system'
         paths=['usr/share/jioyzen-media','usr/lib/jioyzen-media','usr/share/kodi/system/addon-manifest.xml',
                'usr/lib/systemd/system/jioyzen-media-seed.service','usr/lib/systemd/system/jioyzen-media-activate.service',
+               'usr/lib/systemd/system/jioyzen-media-wifi.service',
+               'usr/lib/systemd/system/kodi.target.wants/jioyzen-media-wifi.service',
                'usr/lib/systemd/system/kodi.service.d/20-media-provisioning.conf',
                'usr/lib/coreelec/evrepeat-policy.sh','usr/lib/udev/rules.d/99-remote-repeat-policy.rules',
                'usr/lib/systemd/system/alist.service','usr/lib/systemd/system/openlist.service','usr/lib/systemd/system/clouddrive2.service']
         subprocess.run([unsquashfs,'-no-progress','-processors','2','-d',str(extracted),str(system),*paths],check=True,stdout=subprocess.DEVNULL)
         bundle=extracted/'usr/share/jioyzen-media'
+        wifi=extracted/'usr/lib/jioyzen-media/wifi'
+        for name in ('wizard.py','network.py','start.sh','resources/skins/Default/1080i/wifi.xml',
+                     'resources/skins/Default/media/rounded.png','resources/skins/Default/media/signal3.png'):
+            assert (wifi/name).is_file(), 'Missing offline Wi-Fi wizard resource: '+name
+        ET.parse(wifi/'resources/skins/Default/1080i/wifi.xml')
+        assert (wifi/'start.sh').stat().st_mode & 0o111, 'Wi-Fi startup script is not executable'
+        assert (extracted/'usr/lib/systemd/system/kodi.target.wants/jioyzen-media-wifi.service').is_symlink(), 'Wi-Fi startup not enabled'
         summary=json.loads((bundle/'profile.json').read_text())
         system_addons=ET.parse(extracted/'usr/share/kodi/system/addon-manifest.xml').getroot()
         ids={n.text for n in system_addons.findall('addon')}
@@ -62,7 +71,7 @@ def verify_image(release, toolchain):
             report=verify(bundle)
         finally:verify_offline.deploy=original
         report.update(flash_image_system_matches_update=True,system_partition_bytes=sectors*512,
-                      system_sha256=sha256(system),embedded_installer='passed',first_start_registration='passed')
+                      system_sha256=sha256(system),embedded_installer='passed',first_start_registration='passed',wifi_wizard='embedded and enabled')
         (release/'offline-image-validation.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report))
 

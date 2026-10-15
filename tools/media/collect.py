@@ -23,6 +23,7 @@ def collect():
     assert (SYSTEM/'usr/lib/systemd/system/kodi.service.d/20-media-provisioning.conf').is_file()
     assert (SYSTEM/'usr/lib/jioyzen-media/deploy.py').is_file()
     assert (SYSTEM/'usr/lib/jioyzen-media/activate.py').is_file()
+    assert (SYSTEM/'usr/lib/jioyzen-media/wifi/wizard.py').is_file()
     binary=(SYSTEM/'usr/lib/kodi/kodi.bin').read_bytes()
     assert b'KODI_REMOTE_REPEAT_PERIOD_MS' in binary, 'Input policy not compiled into Kodi'
     updater=(SYSTEM/'usr/share/kodi/addons/service.coreelec.settings/resources/lib/s905x2_updates.pyc').read_bytes()
@@ -62,6 +63,7 @@ def collect():
 - 内置37个插件及依赖、Java、Alist / OpenList / CloudDrive2 程序、遥控默认配置。10个维护插件固定为已验证发布版本。
 - 自动启用 Embuary Mod、中文和天气卡片；默认定位城市。媒体来源、云盘及服务器账号、AI密钥由用户自己配置。
 - JellyCon 客户端预装但默认禁用，避免首次开机弹出局域网服务器扫描。
+- 首次桌面提供独立 Wi-Fi 连接向导；已有网络连接或无无线模块时跳过，连接后刷新天气。
 - 网络工具主程序已安装，默认未启用自启动，不预设账号密码和挂载。
 - 不包含个人 userdata、媒体库、缩略图、网络凭据、蓝牙配对、设备 SSH 密钥，不执行 eMMC 安装或写入 bootloader。
 - 已完成镜像内部署包的离线安装验证；未进行 USB / SD 冷启动及实际设备升级测试。

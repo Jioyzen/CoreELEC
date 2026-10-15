@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window>
+  <defaultcontrol always="true">20</defaultcontrol>
+  <coordinates><system>1</system></coordinates>
+  <controls>
+    <control type="image"><width>1920</width><height>1080</height><texture colordiffuse="BB070B13">white.png</texture></control>
+    <control type="group">
+      <left>400</left><top>130</top>
+      <control type="image"><width>1120</width><height>820</height><texture border="32" colordiffuse="FA1B222D">rounded.png</texture></control>
+      <control type="image"><left>54</left><top>50</top><width>58</width><height>58</height><texture>wifi.png</texture></control>
+      <control type="label"><left>136</left><top>43</top><width>880</width><height>64</height><font>font36_title</font><textcolor>FFF4F6FA</textcolor><label>连接 Wi-Fi</label><aligny>center</aligny></control>
+      <control type="label"><left>56</left><top>123</top><width>1008</width><height>44</height><font>font13</font><textcolor>FFABB6C7</textcolor><label>连接网络，获取天气、海报和在线内容。</label><aligny>center</aligny></control>
+      <control type="label" id="4"><left>56</left><top>178</top><width>1008</width><height>42</height><font>font13</font><textcolor>FFD3DBE7</textcolor><label>正在准备网络…</label><aligny>center</aligny></control>
+      <control type="list" id="10">
+        <left>48</left><top>238</top><width>1024</width><height>440</height>
+        <orientation>vertical</orientation><scrolltime>160</scrolltime>
+        <onup>10</onup><ondown>20</ondown><onleft>20</onleft><onright>21</onright>
+        <pagecontrol>30</pagecontrol>
+        <itemlayout width="1024" height="88">
+          <control type="image"><left>8</left><top>4</top><width>1008</width><height>80</height><texture border="18" colordiffuse="442D394B">rounded.png</texture></control>
+          <control type="image"><left>32</left><top>27</top><width>40</width><height>32</height><texture>$INFO[ListItem.Property(signal)]</texture></control>
+          <control type="label"><left>96</left><top>14</top><width>620</width><height>56</height><font>font27</font><textcolor>FFE9EDF5</textcolor><label>$INFO[ListItem.Label]</label><aligny>center</aligny></control>
+          <control type="label"><left>728</left><top>14</top><width>250</width><height>56</height><font>font12</font><textcolor>FFABB6C7</textcolor><label>$INFO[ListItem.Label2]</label><align>right</align><aligny>center</aligny></control>
+        </itemlayout>
+        <focusedlayout width="1024" height="88">
+          <control type="image"><left>8</left><top>4</top><width>1008</width><height>80</height><texture border="18" colordiffuse="FF3B4656">rounded.png</texture><visible>!Control.HasFocus(10)</visible></control>
+          <control type="image"><left>8</left><top>4</top><width>1008</width><height>80</height><texture border="18" colordiffuse="FFB52F47">rounded.png</texture><visible>Control.HasFocus(10)</visible></control>
+          <control type="image"><left>32</left><top>27</top><width>40</width><height>32</height><texture>$INFO[ListItem.Property(signal)]</texture></control>
+          <control type="label"><left>96</left><top>14</top><width>620</width><height>56</height><font>font27</font><textcolor>FFFFFFFF</textcolor><label>$INFO[ListItem.Label]</label><aligny>center</aligny></control>
+          <control type="label"><left>728</left><top>14</top><width>250</width><height>56</height><font>font12</font><textcolor>FFE8EAF0</textcolor><label>$INFO[ListItem.Label2]</label><align>right</align><aligny>center</aligny></control>
+        </focusedlayout>
+      </control>
+      <control type="scrollbar" id="30"><left>1080</left><top>246</top><width>6</width><height>424</height><texturesliderbackground colordiffuse="222A3444">white.png</texturesliderbackground><texturesliderbar colordiffuse="FF718096" border="3">rounded.png</texturesliderbar><texturesliderbarfocus border="3">rounded.png</texturesliderbarfocus><showonepage>false</showonepage><orientation>vertical</orientation></control>
+      <control type="button" id="20">
+        <left>56</left><top>710</top><width>320</width><height>66</height><label>重新扫描</label><font>font27</font><align>center</align><aligny>center</aligny><textcolor>FFF1F4FA</textcolor><focusedcolor>FFFFFFFF</focusedcolor><disabledcolor>FF657184</disabledcolor>
+        <texturefocus border="18" colordiffuse="FFB52F47">rounded.png</texturefocus><texturenofocus border="18" colordiffuse="FF303C4E">rounded.png</texturenofocus><onup>10</onup><ondown>20</ondown><onleft>20</onleft><onright>21</onright>
+      </control>
+      <control type="button" id="21">
+        <left>744</left><top>710</top><width>320</width><height>66</height><label>稍后设置</label><font>font27</font><align>center</align><aligny>center</aligny><textcolor>FFF1F4FA</textcolor><focusedcolor>FFFFFFFF</focusedcolor>
+        <texturefocus border="18" colordiffuse="FFB52F47">rounded.png</texturefocus><texturenofocus border="18" colordiffuse="FF303C4E">rounded.png</texturenofocus><onup>10</onup><ondown>21</ondown><onleft>20</onleft><onright>21</onright>
+      </control>
+    </control>
+  </controls>
+</window>

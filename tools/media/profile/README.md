@@ -6,6 +6,7 @@
 - 插件更新默认通知，由用户决定，避免同 ID 官方语言包自动覆盖维护版；Jioyzen 仓库保留安装和更新入口。
 - 服务程序预装，Alist / OpenList / CloudDrive2 默认保持当前的“未启用自启动”状态；不复制挂载、登录及管理密码。OpenList 新配置使用 5245 端口，避免与 Alist 的 5244 冲突。
 - JellyCon（Jellyfin 客户端）预装但默认禁用，避免未配置服务器时开机弹出局域网扫描；用户可按需启用。
+- 跳过原版多步骤初始化。首次进入桌面后，独立 Wi-Fi 向导列出附近网络并输入密码连接；已有可用有线或 Wi-Fi 连接、无无线模块时自动跳过。连接成功后立即刷新天气。
 - 红外预置通用 ff00 和本机遥控 DD22 两套码表，由 CoreELEC 原生 remote-config 加载；不依赖额外的 CEBOX 服务。
 - 第一次离线部署在 Kodi 启动前完成；原生源码修复替代诊断时的临时绑定挂载，不携带旧 Kodi 二进制替换器。
 - 仅为 S905X2 U212 / 2GB / RTL8822CS 目标构建。刷写 USB / SD 不写 eMMC bootloader，不自动执行 ceemmc。
@@ -33,5 +34,19 @@ DTB、DV、遥控原生修复和更新通道。系统分区为 1GB，首次安�
 
 2026-10-15 已实测首版 USB 首启扩容、离线部署和进入桌面，首轮部署约3分50秒。
 后续构建仍独立记录离线验证与冷启动验证状态；实际 `.tar` 升级尚未验证。
-天气需要网络连接，首次配置用户自己的网络后才能获取；镜像不包含 Wi-Fi 账号。
+天气需要网络连接，首次 Wi-Fi 向导帮助配置用户自己的网络；镜像不包含 Wi-Fi 账号。
 构建默认只保存 Actions 测试产物；发布与更新通道变更须另行确认。
+
+## Wi-Fi 向导
+
+`jioyzen-media-wifi.service` 在 Kodi 就绪后运行 `/usr/lib/jioyzen-media/wifi/wizard.py`。
+界面使用独立圆角深色对话框，网络扫描、D-Bus 认证和 DHCP 等待在后台完成；
+不依赖 Kodi 的 HTTP 服务、不调用外网来判断连接。连接成功以 ConnMan `ready/online`
+为准；附近网络包含信号和加密提示。密码通过标准输入传入独立进程，再由 ConnMan
+agent 传递给系统网络服务，不作为命令行参数、不写入向导日志和完成标记。
+
+已联网时不抢占界面；启动时等待无线设备与自动连接稳定，无无线模块时不弹窗。
+可“稍后设置”，此后通过 CoreELEC 网络设置连接；完成选择记录于
+`/storage/.cache/jioyzen-media/wifi-setup.json`，升级和 Kodi 重启不重复打扰。
+调试预览可运行 `RunScript(/usr/lib/jioyzen-media/wifi/wizard.py,--preview)`。
+不在出厂配置中携带此标记或任何网络凭据。
