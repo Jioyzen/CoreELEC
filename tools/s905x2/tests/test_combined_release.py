@@ -109,12 +109,16 @@ class CombinedReleaseTests(unittest.TestCase):
         return [{'name': p.name, 'state':'uploaded', 'size': p.stat().st_size,
                  'digest':'sha256:'+release.digest(p)} for p in self.output.iterdir()]
 
+    def draft(self):
+        return {'apiUrl':'https://api.github.com/repos/Jioyzen/CoreELEC/releases/123',
+                'isDraft':True,'tagName':release.read_json(self.output/'build-manifest.json')['release_tag']}
+
     def test_bad_github_upload_stays_draft_and_does_not_advance_any_feed(self):
         self.combine()
         assets = self.uploaded()
         assets[0]['digest']='sha256:'+'0'*64
         with patch.object(release.subprocess, 'run') as run, \
-             patch.object(release.subprocess, 'check_output', return_value=json.dumps({'assets':assets})):
+             patch.object(release.subprocess, 'check_output', side_effect=[json.dumps(self.draft()),json.dumps({'assets':assets})]):
             with self.assertRaises(ValueError): release.publish(self.output)
             self.assertEqual(run.call_count, 1)
             self.assertIn('--draft', run.call_args.args[0])
@@ -131,8 +135,9 @@ class CombinedReleaseTests(unittest.TestCase):
                 self.assertEqual(feed['edition'], 'media')
                 self.assertIn('/'+manifest['release_tag']+'/',feed['artifact']['url'])
         with patch.object(release.subprocess, 'run', side_effect=run), \
-             patch.object(release.subprocess, 'check_output', return_value=json.dumps({'assets':self.uploaded()})):
+             patch.object(release.subprocess, 'check_output', side_effect=[json.dumps(self.draft()),json.dumps({'assets':self.uploaded()})]) as query:
             release.publish(self.output)
+            self.assertEqual(query.call_args.args[0], ['gh','api',self.draft()['apiUrl']])
         self.assertEqual([c[2] for c in calls], ['create','edit','upload'])
         self.assertIn('--latest', calls[1])
 

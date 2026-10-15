@@ -189,7 +189,14 @@ def publish(output):
         '--repo', REPOSITORY, '--target', revision, '--draft',
         '--title', 'S905X2 CoreELEC NO ' + tag + ' · 普通版 + 完整版',
         '--notes-file', str(output / 'RELEASE-NOTES.md'))
-    response = json.loads(subprocess.check_output(['gh', 'api', 'repos/' + REPOSITORY + '/releases/tags/' + tag], text=True))
+    # A draft may not have a Git tag yet. REST lookup by tag returns 404
+    # even to the owner; GraphQL exposes its stable numeric REST API URL.
+    draft = json.loads(subprocess.check_output(['gh', 'release', 'view', tag, '--repo', REPOSITORY,
+                                              '--json', 'apiUrl,isDraft,tagName'], text=True))
+    if (not draft['isDraft'] or draft['tagName'] != tag or
+            not re.fullmatch(r'https://api\.github\.com/repos/Jioyzen/CoreELEC/releases/[0-9]+', draft['apiUrl'])):
+        raise ValueError('Unexpected draft release identity')
+    response = json.loads(subprocess.check_output(['gh', 'api', draft['apiUrl']], text=True))
     verify_uploaded(output, response['assets'])
     run('release', 'edit', tag, '--repo', REPOSITORY, '--draft=false', '--prerelease=false', '--latest')
     # Never touch the live media feed until the complete immutable release
