@@ -8,11 +8,11 @@ on:
       sync_upstream:
         description: Sync official CoreELEC into base, then base fixes into media branch
         type: boolean
-        default: false
+        default: true
       publish:
         description: Publish BOTH validated editions in ONE Release and update their feeds
         type: boolean
-        default: false
+        default: true
 permissions:
   contents: write
 concurrency:
@@ -37,22 +37,32 @@ jobs:
           set -euo pipefail
           git config user.name 'S905X2 build bot'
           git config user.email 's905x2-build@users.noreply.github.com'
+          merge_or_stop() {
+            if ! git merge --no-edit "$1"; then
+              git merge --abort || true
+              echo "::error::Upstream merge failed; both remote branches and published images are unchanged."
+              exit 1
+            fi
+          }
           if [ "$SYNC_UPSTREAM" = true ]; then
             git fetch https://github.com/CoreELEC/CoreELEC.git coreelec-22
-            git merge --no-edit FETCH_HEAD
+            merge_or_stop FETCH_HEAD
             ./tools/s905x2/test.sh
-            git push origin HEAD:s905x2-no-fixes
           fi
           base_sha=$(git rev-parse HEAD)
           git fetch origin s905x2-media-edition
           media_sha=$(git rev-parse FETCH_HEAD)
           if [ "$SYNC_UPSTREAM" = true ]; then
             git switch --detach "$media_sha"
-            git merge --no-edit "$base_sha"
+            merge_or_stop "$base_sha"
             ./tools/s905x2/test.sh
             python3 -m unittest discover -s tools/media/tests -p 'test_*.py'
-            git push origin HEAD:s905x2-media-edition
             media_sha=$(git rev-parse HEAD)
+            # Stage and test BOTH merges before publishing either branch.
+            # Reject the whole push if a branch changed concurrently.
+            git push --atomic origin \
+              "$base_sha:refs/heads/s905x2-no-fixes" \
+              "$media_sha:refs/heads/s905x2-media-edition"
             git switch --detach "$base_sha"
           fi
           echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
@@ -115,7 +125,7 @@ jobs:
           compression-level: 0
           retention-days: 14
       - name: Publish both editions in one Release
-        if: steps.sources.outputs.build == 'true' && github.event_name == 'workflow_dispatch' && inputs.publish
+        if: steps.sources.outputs.build == 'true' && (github.event_name == 'schedule' || inputs.publish)
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_STATE: ${{ steps.sources.outputs.state }}
