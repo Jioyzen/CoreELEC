@@ -14,7 +14,9 @@ makeinstall_target() {
   mkdir -p "${INSTALL}/usr/share/jioyzen-media" "${INSTALL}/usr/lib/jioyzen-media" \
     "${INSTALL}/usr/lib/systemd/system/kodi.service.d" "${INSTALL}/usr/lib/systemd/system/tz-data.service.d"
   cp "${payload}/payload.tar.gz" "${payload}/profile.json" "${INSTALL}/usr/share/jioyzen-media/"
-  cp "${ROOT}/tools/media/deploy.py" "${ROOT}/tools/media/safe_archive.py" "${ROOT}/tools/media/activate.py" "${ROOT}/tools/media/activate.sh" "${INSTALL}/usr/lib/jioyzen-media/"
+  cp "${ROOT}/tools/media/deploy.py" "${ROOT}/tools/media/safe_archive.py" "${ROOT}/tools/media/boot_progress.py" "${ROOT}/tools/media/activate.py" "${ROOT}/tools/media/activate.sh" "${INSTALL}/usr/lib/jioyzen-media/"
+  mkdir -p "${INSTALL}/usr/lib/jioyzen-media/boot"
+  cp "${ROOT}/tools/media/boot/font.json.gz" "${ROOT}/tools/media/boot/FONT-LICENSE.txt" "${INSTALL}/usr/lib/jioyzen-media/boot/"
   mkdir -p "${INSTALL}/usr/lib/jioyzen-media/wifi"
   cp "${ROOT}/tools/media/wifi/"*.py "${ROOT}/tools/media/wifi/start.sh" "${INSTALL}/usr/lib/jioyzen-media/wifi/"
   cp -r "${ROOT}/tools/media/wifi/resources" "${INSTALL}/usr/lib/jioyzen-media/wifi/"

@@ -10,10 +10,12 @@ TOKEN = re.compile(rb'(?:sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|smb://[^
 TEXT = {'.py','.xml','.json','.po','.txt','.conf','.rules','.sh','.md','.service'}
 
 
-def sha256(path):
+def sha256(path, progress=None):
     result = hashlib.sha256()
     with pathlib.Path(path).open('rb') as stream:
-        for chunk in iter(lambda: stream.read(1024*1024), b''):result.update(chunk)
+        for chunk in iter(lambda: stream.read(1024*1024), b''):
+            result.update(chunk)
+            if progress is not None:progress(len(chunk))
     return result.hexdigest()
 
 
@@ -31,7 +33,7 @@ def check_text(name, data):
             raise ValueError('Development environment in '+name)
 
 
-def extract_tar(source, destination):
+def extract_tar(source, destination, progress=None, total=None):
     destination = pathlib.Path(destination)
     destination.mkdir(parents=True, exist_ok=True)
     with tarfile.open(source) as tar:
@@ -43,13 +45,17 @@ def extract_tar(source, destination):
                 raise ValueError('Duplicate or special archive entry')
             names.add(item.name);size += item.size
             if size > MAX_TOTAL:raise ValueError('Archive too large')
+        if total is not None:total(size)
         for item in members:
             target = destination.joinpath(*safe_path(item.name).parts)
             if item.isdir():target.mkdir(parents=True,exist_ok=True);continue
             target.parent.mkdir(parents=True,exist_ok=True)
             with tar.extractfile(item) as stream, target.open('wb') as output:
                 import shutil
-                shutil.copyfileobj(stream,output)
+                if progress is None:shutil.copyfileobj(stream,output)
+                else:
+                    for chunk in iter(lambda: stream.read(1024*1024), b''):
+                        output.write(chunk);progress(len(chunk))
             target.chmod(item.mode & 0o777)
             if target.suffix in TEXT:check_text(item.name,target.read_bytes())
 

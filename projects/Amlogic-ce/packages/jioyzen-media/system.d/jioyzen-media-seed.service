@@ -5,7 +5,7 @@ Before=kodi.service remote-config.service remote-config-tx.service
 Requires=storage.mount
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 /usr/lib/jioyzen-media/deploy.py
+ExecStart=/usr/bin/python3 /usr/lib/jioyzen-media/deploy.py --progress
 ExecStartPost=-/usr/bin/udevadm trigger --subsystem-match=input --action=change
 RemainAfterExit=yes
 TimeoutStartSec=600

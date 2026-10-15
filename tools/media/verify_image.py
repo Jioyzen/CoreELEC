@@ -48,6 +48,14 @@ def verify_image(release, toolchain):
                'usr/lib/systemd/system/alist.service','usr/lib/systemd/system/openlist.service','usr/lib/systemd/system/clouddrive2.service']
         subprocess.run([unsquashfs,'-no-progress','-processors','2','-d',str(extracted),str(system),*paths],check=True,stdout=subprocess.DEVNULL)
         bundle=extracted/'usr/share/jioyzen-media'
+        progress=extracted/'usr/lib/jioyzen-media/boot_progress.py'
+        for name in ('boot_progress.py','boot/font.json.gz','boot/FONT-LICENSE.txt'):
+            embedded=progress.parent/name
+            assert embedded.is_file(), 'Missing offline progress resource: '+name
+            assert sha256(embedded)==sha256(pathlib.Path(__file__).parent/name), 'Progress resource differs from tested source: '+name
+        seed=configparser.ConfigParser(interpolation=None)
+        seed.read(extracted/'usr/lib/systemd/system/jioyzen-media-seed.service')
+        assert seed['Service']['ExecStart'].endswith('deploy.py --progress'), 'Boot progress not enabled'
         wifi=extracted/'usr/lib/jioyzen-media/wifi'
         for name in ('wizard.py','network.py','start.sh','resources/skins/Default/1080i/wifi.xml',
                      'resources/skins/Default/media/rounded.png','resources/skins/Default/media/signal3.png'):
@@ -77,7 +85,8 @@ def verify_image(release, toolchain):
             report=verify(bundle)
         finally:verify_offline.deploy=original
         report.update(flash_image_system_matches_update=True,system_partition_bytes=sectors*512,
-                      system_sha256=sha256(system),embedded_installer='passed',first_start_registration='passed',wifi_wizard='embedded and enabled',wifi_first_start_only=True)
+                      system_sha256=sha256(system),embedded_installer='passed',first_start_registration='passed',wifi_wizard='embedded and enabled',wifi_first_start_only=True,
+                      first_deployment_progress='embedded and enabled')
         (release/'offline-image-validation.json').write_text(json.dumps(report,indent=2)+'\n')
         print(json.dumps(report))
 
