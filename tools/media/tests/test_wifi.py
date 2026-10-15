@@ -110,7 +110,7 @@ class WifiTests(unittest.TestCase):
                 return types.SimpleNamespace(done=lambda: True, result=lambda: value)
         fake_backend = types.SimpleNamespace(call=lambda *a: state, stop=lambda: None)
         fake_xbmc = types.SimpleNamespace(getCondVisibility=lambda cond: home if cond=='Window.IsActive(home)' else False,
-                                         log=lambda *a: None, LOGERROR=4)
+                                         executebuiltin=lambda *a: None, log=lambda *a: None, LOGERROR=4)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             if existing:
@@ -164,6 +164,13 @@ class WifiTests(unittest.TestCase):
         dialog.busy = True
         dialog.update('status', {'wifi': True})
         self.assertFalse(dialog.busy)
+
+    def test_network_ready_refreshes_kodi_and_custom_weather_provider(self):
+        actions = []
+        fake = types.SimpleNamespace(executebuiltin=actions.append, getCondVisibility=lambda cond: True)
+        with patch.object(self.wizard, 'xbmc', fake):
+            self.wizard.refresh_weather()
+        self.assertEqual(actions, ['Weather.Refresh', 'RunScript(/storage/.kodi/addons/weather.jioyzen/default.py)'])
 
 
 if __name__ == '__main__':

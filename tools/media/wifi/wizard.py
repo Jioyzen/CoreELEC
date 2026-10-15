@@ -76,6 +76,12 @@ def display_name(name):
     return name.replace('[', '［').replace(']', '］')
 
 
+def refresh_weather():
+    xbmc.executebuiltin('Weather.Refresh')
+    if xbmc.getCondVisibility('System.AddonIsEnabled(weather.jioyzen)'):
+        xbmc.executebuiltin('RunScript(/storage/.kodi/addons/weather.jioyzen/default.py)')
+
+
 class WifiDialog(xbmcgui.WindowXMLDialog):
     def __init__(self, *args, backend=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -164,9 +170,7 @@ class WifiDialog(xbmcgui.WindowXMLDialog):
     def connected(self):
         self.status('已连接，可以开始使用了。')
         remember('connected')
-        xbmc.executebuiltin('Weather.Refresh')
-        if xbmc.getCondVisibility('System.AddonIsEnabled(weather.jioyzen)'):
-            xbmc.executebuiltin('RunScript(/storage/.kodi/addons/weather.jioyzen/default.py)')
+        refresh_weather()
         self.success_until = time.monotonic() + 1.5
 
     def update(self, action, result):
@@ -272,6 +276,9 @@ def main():
                     break
                 if state.get('connected'):
                     remember('already_connected')
+                    # DHCP may have finished after the original addon
+                    # activation refresh failed due to lack of networking.
+                    refresh_weather()
                     return
                 now = time.monotonic()
                 if now >= deadline or (state.get('wifi') and now >= settle):
