@@ -31,7 +31,7 @@ def release_notes(revision):
 - 使用过旧运行时补丁的系统，应清理残留的 `LD_PRELOAD`、无线驱动替换服务和 DTB 覆盖配置；详见仓库文档。
 - `SHA256SUMS` 提供产物校验，`build-manifest.json` 记录源码版本，`update.json` 供系统更新程序使用。
 
-统一 Actions 每周日北京时间 **03:00** 同步上游并构建普通版与完整版；两边源码均无变化时跳过。默认保存测试产物，手动运行勾选 publish 后，将两套镜像放入同一个正式 Release。首版已实机验证 HDMI、Wi-Fi 和 DV seek 正常；后续版本的正式发布不代表每次都经过整镜像人工实机回归。
+统一 Actions 每周日北京时间 **03:00** 自动同步上游，构建并发布普通版与完整版到同一个 Release；两边源码均无变化时跳过。手动运行默认开启 sync_upstream 与 publish，可取消相应选项。合并冲突或验证、构建失败时停止，不发布新镜像。首版已实机验证 HDMI、Wi-Fi 和 DV seek 正常；后续版本的正式发布不代表每次都经过整镜像人工实机回归。
 
 源码 commit：`{revision}`
 '''
