@@ -1,0 +1,20 @@
+Subject: [PATCH] arm64: dts: correct S905X2 power LED polarity
+
+The tested board uses GPIOAO_11 high for blue and low for red. Its
+inherited u212 LED node is active-low, leaving the running system red
+and switching to blue when gpio-leds turns the LED off at shutdown.
+Override only the custom board to active-high with an on boot state.
+Keep the default-on trigger and standard off-at-shutdown behavior.
+
+--- a/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
++++ b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
+@@ -21,3 +21,9 @@
+     mboxes = <&mbox_pl0 G12A_REE2AO6>;
+     coreelec,legacy-nec-wakeup = <0x00dcdd22>;
+ };
++
++/* GPIOAO_11 selects the power LED color: high is blue, low is red. */
++&{/gpioleds/sys_led} {
++    gpios = <&gpio_ao GPIOAO_11 GPIO_ACTIVE_HIGH>;
++    default-state = "on";
++};

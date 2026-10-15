@@ -15,7 +15,8 @@
     "DV BL/EL pair recovery",
     "DV cold resume EL parameter and PTS replay",
     "VIU encoder routing after headless CVBS boot",
-    "OEM BL30 runtime DD22 NEC wake-up via legacy SCPI"
+    "OEM BL30 runtime DD22 NEC wake-up via legacy SCPI",
+    "Power LED blue while running and red after shutdown"
   ],
   "cec": "upstream defaults"
 }
