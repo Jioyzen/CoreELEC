@@ -1,0 +1,210 @@
+Subject: [PATCH] bootloader: configure the S905X2 OEM BL30 NEC wake code
+
+The tested G12A OEM BL30 accepts legacy SCPI SET_USR_DATA/REMOTE without
+any firmware injection. Its IR comparator strips the NEC inverse-command
+byte, so the configured key must be masked to 24 bits before sending.
+
+Opt the custom board into a remote-only legacy path, assign a separate
+logical channel from mbox-devfs, and default to its verified DD22 key.
+Honor the existing remotewakeup boot argument (zero disables this setup).
+Send once at probe, check transport and firmware status, and retain the
+existing sysfs entry for deferred-provider retry. Do not transmit newer
+protocols, USB-power, GPIO or WOL settings to this OEM firmware.
+
+Clear reserved bits in the old mailbox header and tolerate late/spurious
+interrupts without dereferencing an absent request. Other boards keep
+their existing bl30_manager path.
+
+--- a/drivers/bootloader/bl30_manager.c
++++ b/drivers/bootloader/bl30_manager.c
+@@ -22,6 +22,10 @@
+ static u32 remotewakeupmask = 0xffffffff;
+ static u32 decode_type = 0;
+ static u32 enable_system_power = 0;
++static bool legacy_nec_wakeup;
++static DEFINE_MUTEX(legacy_nec_lock);
++static bool legacy_nec_attempted;
++static int legacy_nec_result;
+ static char gpio[16] = {0};
+ static uint32_t gpiopower = 0xffff;
+ 
+@@ -117,6 +121,69 @@
+ 	return 0;
+ }
+ __setup("gpiopower=", set_gpio_power);
++
++/* This board's OEM BL30 compares the lower 24 bits of a NEC frame.
++ * It implements only legacy REMOTE user data, not CoreELEC's other
++ * power-control extensions. Keep this path opt-in through its board DT.
++ */
++static int setup_legacy_nec_wakeup(void)
++{
++	struct mbox_client client = {
++		.dev = &bl30_pdev->dev,
++		.tx_block = true,
++		.tx_tout = 2000,
++	};
++	struct mbox_chan *chan;
++	u32 code = remotewakeup & 0x00ffffff;
++	u32 status = 0xffffffff;
++	struct aml_mbox_data data = {
++		.cmd = MBOX_CMD_SET_USR_DATA,
++		.client_id = AML_MBOX_CL_REMOTE,
++		.txbuf = &code,
++		.txsize = sizeof(code),
++		.rxbuf = &status,
++		.rxsize = sizeof(status),
++		.sync = MBOX_SYNC,
++	};
++	int ret;
++
++	mutex_lock(&legacy_nec_lock);
++	if (legacy_nec_attempted) {
++		ret = legacy_nec_result;
++		goto unlock;
++	}
++	if (!remotewakeup) {
++		pr_info("%s: legacy NEC wake-up disabled by configuration\n", DRIVER_NAME);
++		legacy_nec_attempted = true;
++		ret = 0;
++		goto unlock;
++	}
++	if (decode_type) {
++		ret = -EOPNOTSUPP;
++		goto unlock;
++	}
++	chan = mbox_request_channel_byname(&client, "ree2aocpu");
++	if (IS_ERR(chan)) {
++		ret = PTR_ERR(chan);
++		goto unlock;
++	}
++	/* Send once per boot. A transport timeout is not safe to retry blindly. */
++	legacy_nec_attempted = true;
++	ret = aml_mbox_transfer(chan, &data, MBOX_SYNC);
++	mbox_free_channel(chan);
++	if (ret >= 0)
++		ret = status ? -EREMOTEIO : 0;
++	legacy_nec_result = ret;
++	if (ret)
++		pr_err("%s: legacy NEC wake-up send failed: %d, status 0x%x\n",
++			DRIVER_NAME, ret, status);
++	else
++		pr_info("%s: legacy NEC wake-up code 0x%06x sent to OEM BL30\n",
++			DRIVER_NAME, code);
++unlock:
++	mutex_unlock(&legacy_nec_lock);
++	return ret;
++}
+ 
+ static ssize_t setup_bl30_store(struct class *cla,
+ 			     struct class_attribute *attr,
+@@ -125,6 +192,12 @@
+ {
+ 	/* mbox request channel */
+ 	static struct mbox_chan *bl30_mbox_chan = NULL;
++	int ret;
++
++	if (legacy_nec_wakeup) {
++		ret = setup_legacy_nec_wakeup();
++		return ret ? ret : count;
++	}
+ 	if (IS_ERR_OR_NULL(bl30_mbox_chan))
+ 		bl30_mbox_chan = aml_mbox_request_channel_byname(&bl30_pdev->dev, "ree2aocpu");
+ 
+@@ -187,11 +260,17 @@
+ {
+ 	int ret;
+ 	int i, x;
++	u32 default_wakeup;
+ 
+ 	pr_info("%s: driver probe\n", DRIVER_NAME);
+ 
+ 	// backup platform device
+ 	bl30_pdev = pdev;
++
++	legacy_nec_wakeup = !of_property_read_u32(pdev->dev.of_node,
++				"coreelec,legacy-nec-wakeup", &default_wakeup);
++	if (legacy_nec_wakeup && remotewakeup == 0xffffffff)
++		remotewakeup = default_wakeup;
+ 
+ 	if (strlen(gpio) > 0) {
+ 		for (i = 0; i < sizeof(bl30_gpios) / sizeof(bl30_gpios_soc_t); i++) {
+@@ -207,11 +286,22 @@
+ 	}
+ 
+ 	bl30_manager_class = class_create(THIS_MODULE, DRIVER_NAME);
++	if (IS_ERR(bl30_manager_class))
++		return PTR_ERR(bl30_manager_class);
+ 	ret = class_create_file(bl30_manager_class, &class_attr_setup_bl30);
+-	if (ret)
+-		pr_err("%s: create class fail.\n", DRIVER_NAME);
+-
+-	return ret;
++	if (ret) {
++		class_destroy(bl30_manager_class);
++		return ret;
++	}
++	/* Configure the retained OEM firmware early, independently of Kodi.
++	 * Keep the sysfs entry available if the mailbox provider probes later.
++	 */
++	if (legacy_nec_wakeup) {
++		ret = setup_legacy_nec_wakeup();
++		if (ret)
++			dev_warn(&pdev->dev, "legacy NEC wake-up setup pending/failed: %d\n", ret);
++	}
++	return 0;
+ }
+ 
+ static const struct of_device_id bl30_manager_dt_match[] = {
+--- a/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
++++ b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_rtl8822cs.dts
+@@ -16,3 +16,8 @@
+     reg = <0x0 0x7f800000 0x0 0x800000>;
+ };
+ &{/sd2@ffe05000} { sd-uhs-sdr104; };
++
++&{/bl30_manager} {
++    mboxes = <&mbox_pl0 G12A_REE2AO6>;
++    coreelec,legacy-nec-wakeup = <0x00dcdd22>;
++};
+--- a/drivers/mailbox/meson_mbox_pl_v0.c
++++ b/drivers/mailbox/meson_mbox_pl_v0.c
+@@ -64,7 +64,7 @@
+ {
+ 	struct aml_mbox_chan *aml_chan = mbox_chan->con_priv;
+ 	struct aml_mbox_data *aml_data = data;
+-	union mbox_stat_old mbox_stat;
++	union mbox_stat_old mbox_stat = {0};
+ 	struct mbox_cmd_old_t *mbox_cmd = &mbox_stat.mbox_cmd_t;
+ 
+ 	mbox_cmd->cmd = aml_data->cmd;
+@@ -117,18 +117,26 @@
+ static irqreturn_t mbox_irq_handler(int irq, void *p)
+ {
+ 	struct aml_mbox_chan *aml_chan = p;
+-	struct mbox_chan *mbox_chan = container_of(aml_chan->tx_complete,
+-						   struct mbox_chan, tx_complete);
++	struct mbox_chan *mbox_chan;
+ 	struct aml_mbox_data *aml_data;
+ 	union mbox_stat mbox_stat;
++	unsigned long flags;
+ 
+ 	pr_debug("%s %x\n", __func__, irq);
++	if (!aml_chan->tx_complete) {
++		writel(~0, aml_chan->mbox_fclr_addr);
++		return IRQ_HANDLED;
++	}
++	mbox_chan = container_of(aml_chan->tx_complete,
++				struct mbox_chan, tx_complete);
+ 	mbox_stat.set_cmd = readl(aml_chan->mbox_fsts_addr);
+ 	if (mbox_stat.set_cmd && irq == aml_chan->mbox_irq) {
++		spin_lock_irqsave(&mbox_chan->lock, flags);
+ 		aml_data = mbox_chan->active_req;
+-		if (aml_data->rxbuf && aml_data->rxsize > 0)
++		if (aml_data && aml_data->rxbuf && aml_data->rxsize > 0)
+ 			memcpy_fromio(aml_data->rxbuf, aml_chan->mbox_rd_addr,
+ 				      aml_data->rxsize);
++		spin_unlock_irqrestore(&mbox_chan->lock, flags);
+ 	}
+ 
+ 	writel(~0, aml_chan->mbox_fclr_addr);

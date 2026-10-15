@@ -14,7 +14,8 @@
     "RTL8822CS vendor driver NAPI/GRO",
     "DV BL/EL pair recovery",
     "DV cold resume EL parameter and PTS replay",
-    "VIU encoder routing after headless CVBS boot"
+    "VIU encoder routing after headless CVBS boot",
+    "OEM BL30 runtime DD22 NEC wake-up via legacy SCPI"
   ],
   "cec": "upstream defaults"
 }

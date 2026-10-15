@@ -35,6 +35,10 @@ assert run('fdtget',str(dtb),'/','coreelec-dt-id')==manifest['dt_id'], 'upgrade 
 assert 'sd-uhs-sdr104' in run('fdtget','-p',str(dtb),'/sd2@ffe05000')
 assert run('fdtget',str(dtb),'/vout_mux','compatible')=='amlogic, vout_mux', 'VIU encoder routing device missing'
 assert run('fdtget',str(dtb),'/vout_mux','status')=='okay', 'VIU encoder routing device disabled'
+assert run('fdtget','-t','x',str(dtb),'/bl30_manager','coreelec,legacy-nec-wakeup')=='dcdd22', 'OEM NEC wake-up default missing'
+bl30_mbox=run('fdtget','-t','x',str(dtb),'/bl30_manager','mboxes').split()
+devfs_mbox=run('fdtget','-t','x',str(dtb),'/mbox_devfs','mboxes').split()
+assert len(bl30_mbox)==2 and bl30_mbox[-1]=='7' and bl30_mbox!=devfs_mbox, 'BL30 mailbox channel must be independent'
 kodi=system/'usr/lib/kodi/kodi.bin'
 assert b'amcodec_dv: collect cold dual-layer input' in kodi.read_bytes(), 'native Kodi DV guard missing'
 assert b'amcodec_dv: restore EL parameters' in kodi.read_bytes(), 'native Kodi seek headers missing'
