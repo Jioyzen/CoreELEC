@@ -13,7 +13,8 @@
     "SDIO SDR104",
     "RTL8822CS vendor driver NAPI/GRO",
     "DV BL/EL pair recovery",
-    "DV cold resume EL parameter and PTS replay"
+    "DV cold resume EL parameter and PTS replay",
+    "VIU encoder routing after headless CVBS boot"
   ],
   "cec": "upstream defaults"
 }
