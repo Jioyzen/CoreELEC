@@ -1,13 +1,25 @@
-# S905X2 CoreELEC NO 修复版
+# S905X2 CoreELEC 22 NO系统 修复版
 
-基于 [CoreELEC](https://github.com/CoreELEC/CoreELEC) 官方 `coreelec-22` 分支，为某未知品牌 **S905X2（RTL8822CS Wi-Fi）** 盒子制作的专用修复源码。
+基于 [CoreELEC](https://github.com/CoreELEC/CoreELEC) 官方 `coreelec-22` 分支，为某 **S905X2（RTL8822CS Wi-Fi）** 盒子制作的专用修复源码。
 
-盒子使用官方 Amlogic-no 出现启动交接花屏和 HDMI 4K60花屏、Wi-Fi 吞吐不足，以及部分 Dolby Vision Profile 7 FEL 影片 seek／续播色块、绿线等故障。
-本项目将已实机验证的修复集成进 DTB、驱动和 Kodi 源码，生成刷入后即可使用的镜像。
+该盒子使用官方 Amlogic-no 出现启动交接花屏和 HDMI 4K60花屏、Wi-Fi 吞吐不足，以及部分 Dolby Vision Profile 7 FEL 影片 seek／续播色块、绿线等故障。
+
+需区分dtb板极修复和coreelec内核修复，基于dtb板极的修复只对S905X2盒子有效，镜像默认内置了修复版的s905x2通用版的dtb文件，如果使用其他dtb或其他s905x2专用dtb则板极修复不生效，但是内核级的修复仍然有效。修复是否生效，请具体看修复内容，应用的位置，有些故障是dtb和内核共同作用的，不保所有设备上修复有效。
 
 **不保证兼容所有 S905X2 盒子。** 同一 SoC 的不同板型可能使用不同内存、无线芯片和 framebuffer 地址。本项目不是 CoreELEC 官方发行版。
 
 [下载最新正式版本](https://github.com/Jioyzen/CoreELEC/releases/latest) · [全部版本](https://github.com/Jioyzen/CoreELEC/releases) · [构建记录](https://github.com/Jioyzen/CoreELEC/actions/workflows/s905x2-weekly.yml) · [详细技术说明](S905X2.md)
+
+## CoreELEC 的 Amlogic-NO（New Order）更新的内容
+有不少朋友问NO版本有哪些更新，与NG有啥区别，官方并没有统一的做总结，但是大致有以下区别：
+CoreELEC 的 Amlogic-NO（New Order）相比 Amlogic-NG，属于一次底层平台的大规模升级，而不只是 Linux 内核从 4.9 升级到 5.15
+1. 底层架构重构：64 位用户空间、Linux 5.15、更新的驱动和系统组件。
+2. 视频播放改进：音画同步、字幕卡顿、杜比视界处理等。
+3. 杜比视界 FEL 支持：NO 已经实现双层杜比视界，不再是 NG 独有的能力。
+4. 设备支持扩大：支持更新的 Amlogic SoC，同时淘汰部分老芯片。
+5. Kodi 22 与 FFmpeg 升级：媒体播放框架与解码组件更新。
+6. 插件兼容性变化：原先 NG 上的 32 位二进制插件不能直接沿用。
+但是实际效果需要自测，不代表所有设备都能工作正常，我这台S905X2就是个例子，遇到的问题并不少。
 
 ## 修复内容
 
@@ -24,11 +36,21 @@
 | DD22 红外遥控无法从关机状态唤醒 | 启动时通过独立 mailbox 通道向原厂 BL30 下发 24 位 NEC 电源码；保留现有引导固件 |
 | 电源指示灯运行时红色、关机后蓝色 | 修正专用 DTB 的 GPIOAO_11 LED 极性，运行时蓝色、关机后红色 |
 
-完整 DV/FEL 解码与合成保持启用，HDR 使用原有路径。CEC 沿用官方逻辑和默认配置。
+- 修复杜比视界seek花屏的同时，完整 DV/FEL 解码与合成保持启用，HDR 使用原有路径
+- S905X2专用 DTB 已作为镜像默认 `dtb.img`，内置已验证的 `dovi.ko`
+- 内核、媒体模块、Wi-Fi 驱动和 Kodi 从对应源码构建
+- 码镜像已由目标盒子实机确认：正常启动，HDMI、Wi-Fi、DV seek／绿线修复有效
 
-专用 DTB 已作为镜像默认 `dtb.img`，内置已验证的 `dovi.ko`。内核、媒体模块、Wi-Fi 驱动和 Kodi 从对应源码构建；`dovi.ko` 使用已验证的 Amlogic 二进制模块，并非本项目修改或重新编译。
+## 提供官方源码构建的镜像和包含皮肤等常用插件的开箱即用版本的镜像
+两个版本的镜像每周日自动合并上游代码，由Actions自动构建并发布，升级通道是独立的，互不干扰，可每周自动更新系统（没有特殊的修复情况下就是同步上游最新代码）。
 
-首个 Actions 源码镜像已由目标盒子实机确认：正常启动，HDMI、Wi-Fi、DV seek／绿线修复有效。
+| 版本 | 文件名 | 内容 |
+| --- | --- | --- |
+| 普通版 | 后缀不含`MEDIA`| 基于官方源码构建，含系统、驱动及 Kodi 修复，不带含任何插件和优化 |
+| 完整版 | 后缀含`MEDIA`| 在上面基础上内置了皮肤、中文、天气卡片插件和openlist、cd2等服务程序，首次启动自动部署 |
+
+完整版首次启动在分区自动扩容完成后会重启进入插件、服务部署阶段，时间较长请耐心等待。
+如需写入emmc，可在部署完成后，ssh连接到coreelec，使用系统自带的ceemmc命令安装到盒子内，安装方式与官方一致，请参照官方说明。
 
 ## 首次刷写
 
@@ -38,8 +60,6 @@
 4. 普通版使用 CoreELEC 初始化；完整版离线部署皮肤、插件和服务程序，首次进入桌面提供一次性 Wi-Fi 向导。已有网络或无无线模块时跳过，后续断网或重启均不再弹出。
 
 完整版建议使用至少 4GB 的介质，系统分区 1GB；JellyCon 默认禁用，Alist / OpenList / CloudDrive2 默认不启动。个人媒体来源、服务器账号和 API 密钥仍需自行配置。
-
-镜像不包含私人 Wi-Fi 密码、SMB 账号、媒体路径或 Kodi 数据库。对还未配置外部启动的盒子，仍需按其原有启动方式操作；本镜像不会代替盒子固件配置外部启动。
 
 ## 升级与自动更新
 
