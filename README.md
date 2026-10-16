@@ -1,10 +1,10 @@
 # S905X2 CoreELEC 22 NO系统 修复版
 
-基于 [CoreELEC](https://github.com/CoreELEC/CoreELEC) 官方 `coreelec-22` 分支，为某 **S905X2（RTL8822CS Wi-Fi）** 盒子制作的专用修复源码。
+基于 [CoreELEC](https://github.com/CoreELEC/CoreELEC) 官方 `coreelec-22` 分支，为电焊哥 **S905X2（RTL8822CS Wi-Fi）** CEBOX盒子制作的专用修复源码。
 
 该盒子使用官方 Amlogic-no 出现启动交接花屏和 HDMI 4K60花屏、Wi-Fi 吞吐不足，以及部分 Dolby Vision Profile 7 FEL 影片 seek／续播色块、绿线等故障。
 
-需区分dtb板极修复和coreelec内核修复，基于dtb板极的修复只对S905X2盒子有效，镜像默认内置了修复版的s905x2通用版的dtb文件，如果使用其他dtb或其他s905x2专用dtb则板极修复不生效，但是内核级的修复仍然有效。修复是否生效，请具体看修复内容，应用的位置，有些故障是dtb和内核共同作用的，不保所有设备上修复有效。
+需区分dtb板极修复和coreelec内核修复，基于dtb板极的修复只对S905X2盒子有效，镜像默认内置了修复版的s905x2通用版的dtb文件，如果使用其他dtb或其他s905x2专用dtb则板极修复不生效，但是内核级的修复仍然有效。修复是否生效，请具体看修复内容，应用的位置，有些故障是dtb和内核共同作用的，另外电焊哥的盒子硬件版本也较多，不保所有设备上修复有效。
 
 **不保证兼容所有 S905X2 盒子。** 同一 SoC 的不同板型可能使用不同内存、无线芯片和 framebuffer 地址。本项目不是 CoreELEC 官方发行版。
 
