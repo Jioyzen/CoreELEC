@@ -1,0 +1,78 @@
+--- a/src/resources/lib/modules/updates.py
++++ b/src/resources/lib/modules/updates.py
+@@ -473,7 +473,7 @@
+                 if self.struct['update']['settings']['Build']['value'] != '':
+                     self.update_file = self.update_json[self.struct['update']['settings']['Channel']['value']]['url'] + self.get_available_builds(self.struct['update']['settings']['Build']['value'])
+                     message = '%s: %s\n%s: %s\n%s' % (self.oe._(32188), version, self.oe._(32187), self.struct['update']['settings']['Build']['value'], self.oe._(32180))
+-                    answer = xbmcDialog.yesno('CoreELEC Update', message)
++                    answer = xbmcDialog.yesno(self.oe._(32363), message)
+                     xbmcDialog = None
+                     del xbmcDialog
+                     if answer:
+@@ -629,7 +629,7 @@
+                     else:
+                         if self.oe.BUILD == 'official' or os.path.isfile('/usr/share/s905x2/manifest.json'):
+                             if self.struct['update']['settings']['UpdateNotify']['value'] == '1':
+-                                ceUpdate = xbmcgui.Dialog().yesno('CoreELEC', 'An update is available, would you like to download it now?')
++                                ceUpdate = xbmcgui.Dialog().yesno('CoreELEC', self.oe._(33990))
+                                 if(ceUpdate):
+                                     self.update_in_progress = True
+                                     self.do_autoupdate(None, True)
+@@ -654,7 +654,7 @@
+                         self.oe.notify(self.oe._(32363), self.oe._(32366))
+                     shutil.move(self.oe.TEMP + 'update_file', self.LOCAL_UPDATE_DIR + self.update_file)
+                     subprocess.call('sync', shell=True, stdin=None, stdout=None, stderr=None)
+-                    ceReboot = xbmcgui.Dialog().yesno('CoreELEC', 'An update has been downloaded, would you like to reboot now to apply it?')
++                    ceReboot = xbmcgui.Dialog().yesno('CoreELEC', self.oe._(33991))
+                     if(ceReboot):
+                         xbmc.restart()
+                 else:
+@@ -670,7 +670,7 @@
+                 partial = self.oe.TEMP + 'update_file'
+                 if os.path.isfile(partial):
+                     os.remove(partial)
+-                self.oe.notify('S905X2 Update', 'Upgrade download or verification failed; will retry.')
++                self.oe.notify(self.oe._(32363), self.oe._(33992))
+             self.oe.dbg_log('updates::do_autoupdate', 'ERROR: (' + repr(e) + ')')
+ 
+     def get_rpi_flashing_state(self):
+--- a/language/resource.language.en_gb/strings.po
++++ b/language/resource.language.en_gb/strings.po
+@@ -1508,3 +1508,17 @@
+ msgctxt "#33533"
+ msgid "Please reboot device"
+ msgstr ""
++
++# Update confirmation and download verification prompts.
++msgctxt "#33990"
++msgid "An update is available, would you like to download it now?"
++msgstr ""
++
++msgctxt "#33991"
++msgid "An update has been downloaded, would you like to reboot now to apply it?"
++msgstr ""
++
++msgctxt "#33992"
++msgid "Upgrade download or verification failed; will retry."
++msgstr ""
++
+--- a/language/resource.language.zh_cn/strings.po
++++ b/language/resource.language.zh_cn/strings.po
+@@ -1522,3 +1522,17 @@
+ msgctxt "#33533"
+ msgid "Please reboot device"
+ msgstr "请重启设备"
++
++# Update confirmation and download verification prompts.
++msgctxt "#33990"
++msgid "An update is available, would you like to download it now?"
++msgstr "发现新版本，是否立即下载更新？"
++
++msgctxt "#33991"
++msgid "An update has been downloaded, would you like to reboot now to apply it?"
++msgstr "更新已下载，是否立即重启并安装？"
++
++msgctxt "#33992"
++msgid "Upgrade download or verification failed; will retry."
++msgstr "更新包下载或校验失败，稍后将重试。"
++

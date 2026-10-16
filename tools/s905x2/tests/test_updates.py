@@ -5,6 +5,7 @@ import hashlib
 import importlib.util
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import tempfile
@@ -80,8 +81,26 @@ class UpdaterTests(unittest.TestCase):
         dest = pathlib.Path(cls.tmp.name) / 'src/resources/lib/modules/updates.py'
         dest.parent.mkdir(parents=True)
         dest.write_bytes((ROOT / 'tools/s905x2/tests/fixtures/updates.py.source').read_bytes())
+        # Only the original final catalog entry is needed as append context.
+        # Full pinned upstream catalogs are also checked when applying patches
+        # in the firmware build.
+        catalogs = {}
+        for locale, translated in [('en_gb', ''), ('zh_cn', '请重启设备')]:
+            catalog = pathlib.Path(cls.tmp.name) / ('language/resource.language.' + locale + '/strings.po')
+            catalog.parent.mkdir(parents=True)
+            catalog.write_text('msgctxt "#33533"\nmsgid "Please reboot device"\nmsgstr "' + translated + '"\n')
+            catalogs[locale] = catalog
         patch_file = ROOT / 'projects/Amlogic-ce/packages/mediacenter/CoreELEC-settings/patches/1000-s905x2-release-updates.patch'
         subprocess.run(['patch', '-p1', '-i', str(patch_file)], cwd=cls.tmp.name, check=True, stdout=subprocess.DEVNULL)
+        patch_file = patch_file.with_name('1001-localize-update-confirmation.patch')
+        subprocess.run(['patch', '-p1', '-i', str(patch_file)], cwd=cls.tmp.name, check=True, stdout=subprocess.DEVNULL)
+        cls.catalogs = {}
+        for locale, catalog in catalogs.items():
+            cls.catalogs[locale] = {
+                int(number): translated or original
+                for number, original, translated in re.findall(
+                    r'msgctxt "#(\d+)"\nmsgid "([^"\n]*)"\nmsgstr "([^"\n]*)"', catalog.read_text())
+            }
         for name in ['xbmc', 'xbmcgui', 'oeWindows']:
             sys.modules[name] = types.ModuleType(name)
         dialog = types.SimpleNamespace(yesno=lambda *a: False)
@@ -125,13 +144,26 @@ class UpdaterTests(unittest.TestCase):
         self.assertFalse(hasattr(self.updater, 'update_file'))
         self.assertEqual(self.loaded_urls, [])
 
+    def test_available_update_prompt_uses_current_addon_language(self):
+        for locale in ('en_gb', 'zh_cn'):
+            with self.subTest(locale=locale):
+                catalog = self.catalogs[locale]
+                self.oe._ = lambda number: catalog.get(number, str(number))
+                with patch.object(u, 'fetch_feed', return_value=FEED), patch.object(u, 'read_os_release', return_value=LOCAL), patch.object(self.module.xbmcgui, 'Dialog') as dialog:
+                    dialog.return_value.yesno.return_value = False
+                    self.updater.check_updates_v2(force=True)
+                dialog.return_value.yesno.assert_called_once_with('CoreELEC', catalog[33990])
+
     def test_auto_download_verifies_and_stages_without_reboot(self):
         self.updater.struct['update']['settings']['AutoUpdate']['value'] = 'auto'
+        self.oe._ = lambda number: self.catalogs['zh_cn'].get(number, str(number))
         def download(url, dest, silent):
             pathlib.Path(dest).write_bytes(PAYLOAD); return dest
         self.oe.download_file = download
-        with patch.object(u, 'fetch_feed', return_value=FEED), patch.object(u, 'read_os_release', return_value=LOCAL), patch.object(self.module.subprocess, 'call'), patch.object(self.module.xbmc, 'restart', create=True) as restart:
+        with patch.object(u, 'fetch_feed', return_value=FEED), patch.object(u, 'read_os_release', return_value=LOCAL), patch.object(self.module.subprocess, 'call'), patch.object(self.module.xbmc, 'restart', create=True) as restart, patch.object(self.module.xbmcgui, 'Dialog') as dialog:
+            dialog.return_value.yesno.return_value = False
             self.updater.check_updates_v2()
+        dialog.return_value.yesno.assert_called_once_with('CoreELEC', self.catalogs['zh_cn'][33991])
         self.assertEqual((self.temp / 'staged' / NAME).read_bytes(), PAYLOAD)
         restart.assert_not_called()
         self.assertEqual(self.loaded_urls, [])
@@ -142,6 +174,7 @@ class UpdaterTests(unittest.TestCase):
         fetch.assert_not_called()
 
     def test_bad_download_removed_and_retry_possible(self):
+        self.oe._ = lambda number: self.catalogs['zh_cn'].get(number, str(number))
         self.updater.s905x2_feed = FEED
         self.updater.update_file = FEED['artifact']['url']
         self.updater.update_in_progress = True
@@ -152,6 +185,7 @@ class UpdaterTests(unittest.TestCase):
         self.assertFalse(list((self.temp / 'staged').iterdir()))
         self.assertFalse((self.temp / 'update_file').exists())
         self.assertFalse(hasattr(self.updater, 'update_in_progress'))
+        self.assertEqual(self.notifications[-1], ('32363', self.catalogs['zh_cn'][33992]))
 
 
 if __name__ == '__main__':
