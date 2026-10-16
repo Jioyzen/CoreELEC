@@ -8,62 +8,62 @@
     {
       "id": "metadata.tmdb.cn.optimization",
       "version": "3.4.4",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/metadata.tmdb.cn.optimization-3.4.4.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/metadata.tmdb.cn.optimization-3.4.4.zip",
       "sha256": "cb66ada62080014f647386fb70ef86387e39f2b35f61779b725b890aadc71260"
     },
     {
       "id": "plugin.video.filteredmovies",
       "version": "2.5.11",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/plugin.video.filteredmovies-2.5.11.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/plugin.video.filteredmovies-2.5.11.zip",
       "sha256": "c0aad4bfe593b5df4a8f743506b0fd6b616365147f5afcd23d1b3d7347541dd6"
     },
     {
       "id": "repository.jioyzen",
       "version": "1.0.1",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/repository.jioyzen-1.0.1.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/repository.jioyzen-1.0.1.zip",
       "sha256": "813fadf8b9c3785133b490d81872d98be180852ddc66bb183d331247909f3e7c"
     },
     {
       "id": "resource.language.zh_cn",
       "version": "11.0.103.2",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/resource.language.zh_cn-11.0.103.2.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/resource.language.zh_cn-11.0.103.2.zip",
       "sha256": "9c3dd979911f3dc209206b9f7fa60bfc86a984d5638bde969ae932b865fd1e29"
     },
     {
       "id": "script.ai.movie.scanner",
-      "version": "1.10.2",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/script.ai.movie.scanner-1.10.2.zip",
-      "sha256": "7503ad3552aaf1389bdc80767a741d34128f160fcade00e51765b20b129f44aa"
+      "version": "1.10.3",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/script.ai.movie.scanner-1.10.3.zip",
+      "sha256": "4bb2d907e64efbe2a1e3b7ab7bb0e0ede08861d56febcffd6ae694af2c280297"
     },
     {
       "id": "script.alist",
       "version": "1.2.0",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/script.alist-1.2.0.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/script.alist-1.2.0.zip",
       "sha256": "90ba9e0e265b8e06c6e543043a571a85aa5f9bc61e7feb75166d6d760cb1657c"
     },
     {
       "id": "script.clouddrive2",
       "version": "1.2.0",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/script.clouddrive2-1.2.0.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/script.clouddrive2-1.2.0.zip",
       "sha256": "8919119546f2122e0332c28f3b88405731f252dad9f526d9a8e9861eda583b81"
     },
     {
       "id": "script.openlist",
       "version": "1.0.1",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/script.openlist-1.0.1.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/script.openlist-1.0.1.zip",
       "sha256": "14d51c47aa0b76298fe5bbdef4ddbae78fd39c737184b0e6bc837760e99d007d"
     },
     {
       "id": "skin.embuary.mod.jioyzen",
       "version": "1.0.31",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/skin.embuary.mod.jioyzen-1.0.31.zip",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/skin.embuary.mod.jioyzen-1.0.31.zip",
       "sha256": "54fdc6f12f05fdd1702f8e6df63b7c4a2dd893295c1f11e84094388aad5d8503"
     },
     {
       "id": "weather.jioyzen",
-      "version": "0.5.3",
-      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-f73060da8c0d/weather.jioyzen-0.5.3.zip",
-      "sha256": "8f57c73604bce8917c9aead28988dd73fcc5e1a1275ef9fd7fbef6106106c71f"
+      "version": "0.5.4",
+      "url": "https://github.com/Jioyzen/kodi-addons/releases/download/addons-7e8dcbb2589d/weather.jioyzen-0.5.4.zip",
+      "sha256": "c52e9bfc669c1fac001294a8f56efd4fab23ba9a64bcf6c9979ff231d82dc43b"
     }
   ],
   "system_addons": {
