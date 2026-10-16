@@ -83,9 +83,10 @@ def refresh_weather():
 
 
 class WifiDialog(xbmcgui.WindowXMLDialog):
-    def __init__(self, *args, backend=None, **kwargs):
+    def __init__(self, *args, backend=None, initial_scan=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.backend = backend
+        self.initial_scan = initial_scan
         self.events = queue.Queue()
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=1, thread_name_prefix='wifi-setup')
         self.closed = False
@@ -101,7 +102,19 @@ class WifiDialog(xbmcgui.WindowXMLDialog):
             return
         self.initialized = True
         self.setFocusId(20)
-        self.submit('scan')
+        if self.initial_scan is None:
+            self.submit('scan')
+        elif self.initial_scan.done():
+            self.update('scan', scan_result(self.initial_scan))
+        else:
+            # The scan started while Kodi was still loading its home window.
+            # Render the dialog now; publish its result through the UI queue.
+            self.busy = True
+            self.status('正在查找附近的 Wi-Fi…')
+            self.getControl(20).setEnabled(False)
+            self.getControl(10).setEnabled(False)
+            self.initial_scan.add_done_callback(
+                lambda future: self.events.put(('scan', scan_result(future))))
 
     def status(self, text):
         self.getControl(4).setLabel(text)
@@ -236,6 +249,13 @@ class WifiDialog(xbmcgui.WindowXMLDialog):
             self.close()
 
 
+def scan_result(future):
+    try:
+        return future.result()
+    except Exception:
+        return {'error': 'failed'}
+
+
 def main():
     CACHE.mkdir(parents=True, exist_ok=True)
     with (CACHE / 'wifi-setup.lock').open('w') as lock:
@@ -254,52 +274,65 @@ def main():
             remember('started')
         backend = Backend()
         try:
-            # EventServer can be ready before the skin. Never interrupt a movie
-            # or an existing dialog, nor force users back from another window.
-            deadline = time.monotonic() + 90
-            while not (xbmc.getCondVisibility('Window.IsActive(home)') and
-                       not xbmc.getCondVisibility('System.HasActiveModalDialog')):
-                if MONITOR.waitForAbort(.5) or time.monotonic() >= deadline:
-                    return
-            deadline = time.monotonic() + 20
-            settle = time.monotonic() + 8
-            while True:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(backend.call, 'status')
-                    while not future.done():
-                        if MONITOR.waitForAbort(.1):
-                            backend.stop()
+            # Network readiness is independent of addon activation and Home.
+            # Prepare it while the skin loads, not eight seconds afterwards.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                try:
+                    deadline = time.monotonic() + 20
+                    while True:
+                        future = executor.submit(backend.call, 'status')
+                        while not future.done():
+                            if MONITOR.waitForAbort(.1):
+                                return
+                        state = scan_result(future)
+                        if state.get('connected') and not preview:
+                            remember('already_connected')
+                            refresh_weather()
                             return
-                    state = future.result()
-                if state.get('error'):
-                    # Retry only within this first-start invocation. A late
-                    # daemon must not cause a popup on a subsequent boot.
-                    if time.monotonic() >= deadline or MONITOR.waitForAbort(2):
-                        return
-                    continue
-                if preview:
-                    break
-                if state.get('connected'):
-                    remember('already_connected')
-                    # DHCP may have finished after the original addon
-                    # activation refresh failed due to lack of networking.
-                    refresh_weather()
-                    return
-                now = time.monotonic()
-                if now >= deadline or (state.get('wifi') and now >= settle):
-                    if not needs_setup(state):
-                        remember('no_wifi' if not state.get('wifi') else 'hotspot')
-                        return
-                    break
-                if MONITOR.waitForAbort(2):
-                    return
-            # Recheck Home after the hardware grace period; do not steal focus
-            # from an application launched while automatic networking settled.
-            if not xbmc.getCondVisibility('Window.IsActive(home)') or xbmc.getCondVisibility('System.HasActiveModalDialog'):
-                return
-            window = WifiDialog('wifi.xml', str(ROOT), 'Default', '1080i', backend=backend)
-            window.run()
-            del window
+                        if not state.get('error'):
+                            if preview:
+                                break
+                            if state.get('wifi') and state.get('tethering'):
+                                remember('hotspot')
+                                return
+                            if state.get('wifi') and not state.get('connecting'):
+                                break
+                        if time.monotonic() >= deadline:
+                            if not state.get('error') and not state.get('wifi'):
+                                remember('no_wifi')
+                            if state.get('error') or not needs_setup(state):
+                                return
+                            break
+                        # Only hardware/daemon discovery or an actual pending
+                        # association/DHCP needs a grace period on first boot.
+                        if MONITOR.waitForAbort(.5):
+                            return
+
+                    initial_scan = executor.submit(backend.call, 'scan')
+                    # Never force navigation or cover another modal window.
+                    # A slow scan must not delay the first desktop prompt.
+                    deadline = time.monotonic() + 90
+                    while not (xbmc.getCondVisibility('Window.IsActive(home)') and
+                               not xbmc.getCondVisibility('System.HasActiveModalDialog')):
+                        if MONITOR.waitForAbort(.1) or time.monotonic() >= deadline:
+                            return
+                    if initial_scan.done() and not preview:
+                        prepared = scan_result(initial_scan)
+                        if prepared.get('connected'):
+                            remember('already_connected')
+                            refresh_weather()
+                            return
+                        if not prepared.get('error') and not needs_setup(prepared):
+                            remember('no_wifi' if not prepared.get('wifi') else 'hotspot')
+                            return
+                    window = WifiDialog('wifi.xml', str(ROOT), 'Default', '1080i',
+                                        backend=backend, initial_scan=initial_scan)
+                    window.run()
+                    del window
+                finally:
+                    # Stop an in-flight scan before waiting for its worker on
+                    # navigation/exit, shutdown or an interrupted first boot.
+                    backend.stop()
         except Exception as error:
             xbmc.log('[Jioyzen Wi-Fi] Setup unavailable: ' + type(error).__name__, xbmc.LOGERROR)
         finally:

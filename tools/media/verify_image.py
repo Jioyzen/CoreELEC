@@ -66,6 +66,7 @@ def verify_image(release, toolchain):
         unit=configparser.ConfigParser(interpolation=None)
         unit.read(extracted/'usr/lib/systemd/system/jioyzen-media-wifi.service')
         assert unit['Service']['Type']=='oneshot' and unit['Service'].get('RemainAfterExit','no')=='no', 'Wi-Fi service must not remain active'
+        assert 'jioyzen-media-activate.service' not in unit['Unit'].get('After','').split(), 'Wi-Fi startup must not wait for addon activation'
         assert unit['Unit']['ConditionPathExists']=='!/storage/.cache/jioyzen-media/wifi-setup.json', 'Wi-Fi first-start guard missing'
         assert 'PartOf' not in unit['Unit'] and unit['Service'].get('Restart','no')=='no', 'Wi-Fi service must not restart with Kodi'
         summary=json.loads((bundle/'profile.json').read_text())

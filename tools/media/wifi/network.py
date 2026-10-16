@@ -33,6 +33,8 @@ def summarize(technologies, services):
     wifi = next(((p, v) for p, v in technologies if v.get('Type') == 'wifi'), None)
     connected = next((v.get('Type') for _, v in services
                       if v.get('Type') in {'ethernet', 'wifi'} and v.get('State') in READY), '')
+    connecting = any(v.get('Type') in {'ethernet', 'wifi'} and
+                     v.get('State') in {'association', 'configuration'} for _, v in services)
     networks = []
     for path, props in services:
         if props.get('Type') != 'wifi' or not props.get('Name'):
@@ -46,7 +48,7 @@ def summarize(technologies, services):
     return {'wifi': bool(wifi), 'wifi_path': wifi[0] if wifi else '',
             'powered': bool(wifi and wifi[1].get('Powered')),
             'tethering': bool(wifi and wifi[1].get('Tethering')),
-            'connected': connected, 'networks': networks}
+            'connected': connected, 'connecting': connecting, 'networks': networks}
 
 
 def error_code(error):

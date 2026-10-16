@@ -1,6 +1,6 @@
 [Unit]
 Description=First-desktop Wi-Fi connection wizard
-After=kodi.service jioyzen-media-activate.service
+After=kodi.service jioyzen-media-seed.service
 Requires=kodi.service
 ConditionPathExists=!/storage/.cache/jioyzen-media/wifi-setup.json
 [Service]

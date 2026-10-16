@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import importlib.util
 import json
 from pathlib import Path
@@ -6,7 +7,7 @@ import sys
 import tempfile
 import types
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -44,6 +45,13 @@ class WifiTests(unittest.TestCase):
             info = network.summarize([('/wifi', {'Type': 'wifi', 'Powered': False})],
                                      [('/service', {'Type': 'wifi', 'State': state})])
             self.assertTrue(self.wizard.needs_setup(info))
+
+    def test_only_active_association_or_dhcp_requests_network_grace(self):
+        for link in ('ethernet', 'wifi'):
+            for state in ('idle', 'failure', 'association', 'configuration', 'ready', 'online'):
+                with self.subTest(link=link, state=state):
+                    info = network.summarize([], [('/service', {'Type': link, 'State': state})])
+                    self.assertEqual(info['connecting'], state in {'association', 'configuration'})
 
     def test_existing_hotspot_is_not_reconfigured(self):
         info = network.summarize([('/wifi', {'Type': 'wifi', 'Tethering': True})], [])
@@ -95,21 +103,35 @@ class WifiTests(unittest.TestCase):
             self.assertTrue(result['connected'])
             self.assertNotIn('DO_NOT_LOG', str(popen.call_args))
 
-    def startup(self, state, *, home=True, existing=False):
+    def startup(self, state, *, home=True, existing=False, pending_scan=False, observed=None, abort_at=None):
         clock = [0]
         shown = []
         def wait(seconds):
             clock[0] += seconds
-            return False
+            return abort_at is not None and clock[0] >= abort_at
         class InlineExecutor:
             def __init__(self, **kwargs): pass
             def __enter__(self): return self
             def __exit__(self, *args): pass
             def submit(self, function, *args):
-                value = function(*args)
-                return types.SimpleNamespace(done=lambda: True, result=lambda: value)
-        fake_backend = types.SimpleNamespace(call=lambda *a: state, stop=lambda: None)
-        fake_xbmc = types.SimpleNamespace(getCondVisibility=lambda cond: home if cond=='Window.IsActive(home)' else False,
+                future = concurrent.futures.Future()
+                if not (pending_scan and args == ('scan',)):
+                    future.set_result(function(*args))
+                return future
+        def call(action):
+            if observed is not None:
+                observed.setdefault('calls', []).append((action, clock[0]))
+            return state(action, clock[0]) if callable(state) else state
+        def stop():
+            if observed is not None:
+                observed['stopped'] = True
+        def dialog(*args, **kwargs):
+            if observed is not None:
+                observed['initial_scan'] = kwargs['initial_scan']
+                observed['shown_at'] = clock[0]
+            return types.SimpleNamespace(run=lambda: shown.append(True))
+        fake_backend = types.SimpleNamespace(call=call, stop=stop)
+        fake_xbmc = types.SimpleNamespace(getCondVisibility=lambda cond: (home(clock[0]) if callable(home) else home) if cond=='Window.IsActive(home)' else False,
                                          executebuiltin=lambda *a: None, log=lambda *a: None, LOGERROR=4)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -121,7 +143,7 @@ class WifiTests(unittest.TestCase):
                  patch.object(self.wizard, 'xbmc', fake_xbmc), \
                  patch.object(self.wizard.time, 'monotonic', side_effect=lambda: clock[0]), \
                  patch.object(self.wizard.concurrent.futures, 'ThreadPoolExecutor', InlineExecutor), \
-                 patch.object(self.wizard, 'WifiDialog', side_effect=lambda *a, **k: types.SimpleNamespace(run=lambda: shown.append(True))):
+                 patch.object(self.wizard, 'WifiDialog', side_effect=dialog):
                 self.wizard.main()
             marker = root/'wifi-setup.json'
             return shown, json.loads(marker.read_text()) if marker.exists() else None, clock[0]
@@ -141,7 +163,84 @@ class WifiTests(unittest.TestCase):
         shown, marker, elapsed = self.startup({'wifi': True})
         self.assertEqual(shown, [True])
         self.assertEqual(marker['reason'], 'started')
-        self.assertEqual(elapsed, 8)
+        self.assertEqual(elapsed, 0)
+
+    def test_network_scan_is_prepared_before_home_appears(self):
+        observed = {}
+        shown, _, elapsed = self.startup({'wifi': True}, home=lambda now: now >= 4, observed=observed)
+        self.assertEqual(shown, [True])
+        self.assertEqual(observed['calls'], [('status', 0), ('scan', 0)])
+        self.assertLess(elapsed, 4.2)
+        self.assertTrue(observed['initial_scan'].done())
+
+    def test_slow_scan_does_not_delay_first_desktop_dialog(self):
+        observed = {}
+        shown, _, elapsed = self.startup({'wifi': True}, pending_scan=True, observed=observed)
+        self.assertEqual(shown, [True])
+        self.assertEqual(elapsed, 0)
+        self.assertFalse(observed['initial_scan'].done())
+        self.assertTrue(observed['stopped'])
+
+    def test_dhcp_completion_skips_dialog_without_fixed_desktop_wait(self):
+        def state(action, now):
+            return {'wifi': True, 'connecting': now < 1.5, 'connected': 'ethernet' if now >= 1.5 else ''}
+        shown, marker, elapsed = self.startup(state)
+        self.assertFalse(shown)
+        self.assertEqual(marker['reason'], 'already_connected')
+        self.assertEqual(elapsed, 1.5)
+
+    def test_connection_finishing_during_prepared_scan_skips_dialog(self):
+        shown, marker, elapsed = self.startup(lambda action, now: {'wifi': True, 'connected': 'wifi' if action == 'scan' else ''})
+        self.assertFalse(shown)
+        self.assertEqual(marker['reason'], 'already_connected')
+        self.assertEqual(elapsed, 0)
+
+    def test_radio_removed_during_preparation_does_not_flash_dialog(self):
+        shown, marker, elapsed = self.startup(lambda action, now: {'wifi': action == 'status'})
+        self.assertFalse(shown)
+        self.assertEqual(marker['reason'], 'no_wifi')
+        self.assertEqual(elapsed, 0)
+
+    def test_shutdown_while_waiting_for_home_stops_preparation(self):
+        observed = {}
+        shown, marker, _ = self.startup({'wifi': True}, home=False, pending_scan=True,
+                                        observed=observed, abort_at=.3)
+        self.assertFalse(shown)
+        self.assertEqual(marker['reason'], 'started')
+        self.assertTrue(observed['stopped'])
+
+    def test_pending_scan_only_publishes_to_queue_after_dialog_initializes(self):
+        import queue
+        dialog = object.__new__(self.wizard.WifiDialog)
+        dialog.initialized = False
+        dialog.initial_scan = concurrent.futures.Future()
+        dialog.events = queue.Queue()
+        dialog.setFocusId = Mock()
+        dialog.status = Mock()
+        controls = {10: Mock(), 20: Mock()}
+        dialog.getControl = controls.__getitem__
+        dialog.submit = Mock()
+        dialog.update = Mock()
+        dialog.onInit()
+        self.assertTrue(dialog.busy)
+        controls[10].setEnabled.assert_called_once_with(False)
+        controls[20].setEnabled.assert_called_once_with(False)
+        dialog.initial_scan.set_result({'wifi': True, 'networks': []})
+        self.assertEqual(dialog.events.get_nowait(), ('scan', {'wifi': True, 'networks': []}))
+        dialog.submit.assert_not_called()
+        dialog.update.assert_not_called()
+
+    def test_completed_scan_is_used_without_another_scan(self):
+        dialog = object.__new__(self.wizard.WifiDialog)
+        dialog.initialized = False
+        dialog.initial_scan = concurrent.futures.Future()
+        dialog.initial_scan.set_result({'wifi': True, 'networks': []})
+        dialog.setFocusId = Mock()
+        dialog.submit = Mock()
+        dialog.update = Mock()
+        dialog.onInit()
+        dialog.update.assert_called_once_with('scan', {'wifi': True, 'networks': []})
+        dialog.submit.assert_not_called()
 
     def test_unavailable_daemon_consumes_first_start_without_claiming_success(self):
         shown, marker, _ = self.startup({'error': 'failed'})
