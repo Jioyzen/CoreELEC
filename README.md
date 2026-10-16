@@ -54,6 +54,14 @@ CoreELEC 的 Amlogic-NO（New Order）相比 Amlogic-NG，属于一次底层平�
 完整版首次启动在分区自动扩容完成后会重启进入插件、服务部署阶段，时间较长请耐心等待。
 如需写入emmc，可在部署完成后，ssh连接到coreelec，使用系统自带的ceemmc命令安装到盒子内，安装方式与官方一致，请参照官方说明。
 
+### 完整版界面预览
+
+![桌面、应用、海报墙首页和系统设置](images/media-edition-home.png)
+
+![电影、电视剧海报墙和筛选](images/media-edition-library.png)
+
+![电影、演员、电视剧和选集详情](images/media-edition-details.png)
+
 ## 首次刷写
 
 1. 在同一个 Release 中选择普通版（文件名不含 `-MEDIA-`）或完整版（含 `-MEDIA-`）的 `.img.gz`。
