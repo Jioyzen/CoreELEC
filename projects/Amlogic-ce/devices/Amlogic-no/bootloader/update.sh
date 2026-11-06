@@ -81,7 +81,9 @@ for arg in $(cat /proc/cmdline); do
       DT_ID=$(dtname)
       # This dedicated SYSTEM is also an entry point from official NO builds.
       # Select its board DTB rather than keeping the old generic board ID.
-      if [ -f /usr/share/s905x2/manifest.json ]; then
+      if [ -f /usr/share/jiefu/manifest.json ]; then
+        DT_ID="g12a_s905x2_u212_2g_jeff2021"
+      elif [ -f /usr/share/s905x2/manifest.json ]; then
         DT_ID="g12a_s905x2_u212_2g_rtl8822cs"
       fi
       MIGRATE_DTB=""
@@ -212,7 +214,7 @@ if [ -f ${BOOT_ROOT}/cfgload ]; then
     echo "Updating aml_autoscript..."
     cp -p /usr/share/bootloader/aml_autoscript ${BOOT_ROOT}
 
-    if [ -e /dev/env ]; then
+    if [ -e /dev/env -a ! -f /usr/share/jiefu/manifest.json ]; then
       mkdir -p /var/lock
       dd if=${BOOT_ROOT}/aml_autoscript bs=72 skip=1 status=none | \
       while read line; do
@@ -227,10 +229,12 @@ if [ -f ${BOOT_ROOT}/cfgload ]; then
     cp -p /usr/share/bootloader/recovery.img ${BOOT_ROOT}
   fi
 
-  /usr/lib/coreelec/check-bl301
-  if [ ${?} = 1 ]; then
-    echo "Found custom CoreELEC BL30, running inject_bl301 tool..."
-    inject_bl301 -Y &>/dev/null
+  if [ ! -f /usr/share/jiefu/manifest.json ]; then
+    /usr/lib/coreelec/check-bl301
+    if [ ${?} = 1 ]; then
+      echo "Found custom CoreELEC BL30, running inject_bl301 tool..."
+      inject_bl301 -Y &>/dev/null
+    fi
   fi
 fi
 

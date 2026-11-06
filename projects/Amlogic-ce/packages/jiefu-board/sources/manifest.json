@@ -1,0 +1,10 @@
+{
+  "board": "Jiefu / SEI Jeff2021 / S905X2 / 2GiB / RTL8822CS",
+  "dt_id": "g12a_s905x2_u212_2g_jeff2021",
+  "amlogic_dt_id": "g12a_s905x2_u212_2g_rtl8822cs",
+  "edition": "jiefu-media",
+  "dolby_vision": false,
+  "cec": "disabled",
+  "source_branch": "jiefu-s905x2-no",
+  "repair_baseline_dtb_sha256": "8d90fdfbc30112c13c14d7f357163c0ad129e6eee9d67d10a5067360a792963e"
+}

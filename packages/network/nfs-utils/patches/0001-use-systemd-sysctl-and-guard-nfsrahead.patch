@@ -1,0 +1,37 @@
+diff --git a/systemd/60-nfs.rules b/systemd/60-nfs.rules
+index 188423c..69d7c40 100644
+--- a/systemd/60-nfs.rules
++++ b/systemd/60-nfs.rules
+@@ -2,20 +2,20 @@
+
+ # sunrpc module supports "sunrpc.*" sysctls
+ ACTION=="add", SUBSYSTEM=="module", KERNEL=="sunrpc", \
+-  RUN+="/sbin/sysctl -q --pattern ^sunrpc --system"
++  RUN+="/usr/lib/systemd/systemd-sysctl --prefix=/sunrpc"
+
+ # rpcrdma module supports sunrpc.svc_rdma.*
+ ACTION=="add", SUBSYSTEM=="module", KERNEL=="rpcrdma", \
+-  RUN+="/sbin/sysctl -q --pattern ^sunrpc.svc_rdma --system"
++  RUN+="/usr/lib/systemd/systemd-sysctl --prefix=/sunrpc/svc_rdma"
+
+ # lockd module supports "fs.nfs.nlm*" and "fs.nfs.nsm*" sysctls
+ ACTION=="add", SUBSYSTEM=="module", KERNEL=="lockd", \
+-  RUN+="/sbin/sysctl -q --pattern ^fs.nfs.n[sl]m --system"
++  RUN+="/usr/lib/systemd/systemd-sysctl --prefix=/fs/nfs"
+
+ # nfsv4 module supports "fs.nfs.*" sysctls (nfs_callback_tcpport and idmap_cache_timeout)
+ ACTION=="add", SUBSYSTEM=="module", KERNEL=="nfsv4", \
+-  RUN+="/sbin/sysctl -q --pattern ^fs.nfs.(nfs_callback_tcpport|idmap_cache_timeout) --system"
++  RUN+="/usr/lib/systemd/systemd-sysctl --prefix=/fs/nfs"
+
+ # nfs module supports "fs.nfs.*" sysctls
+ ACTION=="add", SUBSYSTEM=="module", KERNEL=="nfs", \
+-  RUN+="/sbin/sysctl -q --pattern ^fs.nfs --system"
++  RUN+="/usr/lib/systemd/systemd-sysctl --prefix=/fs/nfs"
+diff --git a/tools/nfsrahead/99-nfs.rules.in b/tools/nfsrahead/99-nfs.rules.in
+index 648813c..91bcb35 100644
+--- a/tools/nfsrahead/99-nfs.rules.in
++++ b/tools/nfsrahead/99-nfs.rules.in
+@@ -1 +1 @@
+-SUBSYSTEM=="bdi", ACTION=="add", PROGRAM="_libexecdir_/nfsrahead %k", ATTR{read_ahead_kb}="%c"
++SUBSYSTEM=="bdi", ACTION=="add", TEST="_libexecdir_/nfsrahead", PROGRAM="_libexecdir_/nfsrahead %k", ATTR{read_ahead_kb}="%c"

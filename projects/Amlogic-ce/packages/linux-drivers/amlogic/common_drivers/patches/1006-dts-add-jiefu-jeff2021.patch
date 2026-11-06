@@ -1,0 +1,69 @@
+diff --git a/arch/arm64/boot/dts/amlogic/Makefile b/arch/arm64/boot/dts/amlogic/Makefile
+index 5138de6..f83f60c 100644
+--- a/arch/arm64/boot/dts/amlogic/Makefile
++++ b/arch/arm64/boot/dts/amlogic/Makefile
+@@ -1,3 +1,4 @@
++dtb-y += g12a_s905x2_u212_2g_jeff2021.dtb
+ dtb-y += g12a_s905x2_u212_2g_rtl8822cs.dtb
+ # SPDX-License-Identifier: GPL-2.0
+ dtb-y += g12a_s905x2_2g.dtb
+diff --git a/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_jeff2021.dts b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_jeff2021.dts
+new file mode 100644
+index 0000000..c3ea8e4
+--- /dev/null
++++ b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_jeff2021.dts
+@@ -0,0 +1,54 @@
++// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
++// Jiefu / SEI Jeff2021: keep separate from the DV-capable S905X2-K tree.
++#include "g12a_s905x2_2g.dts"
++
++/ {
++	model = "Jiefu SEI Jeff2021 S905X2 2GB RTL8822CS";
++	// Retain the OEM handoff selector, including the audio DMA stop.
++	amlogic-dt-id = "g12a_s905x2_u212_2g_rtl8822cs";
++	coreelec-dt-id = "g12a_s905x2_u212_2g_jeff2021";
++
++	vout_mux {
++		compatible = "amlogic, vout_mux";
++		status = "okay";
++	};
++};
++
++&{/vpu} { clk_level = <8>; };
++&{/reserved-memory/linux,meson-fb} {
++	reg = <0x0 0x7f800000 0x0 0x800000>;
++};
++
++// OEM U-Boot expands secmon to 0x09400000. The old region overlaps it.
++&{/reserved-memory/ramoops@0x07400000} {
++	reg = <0x0 0x09400000 0x0 0x100000>;
++};
++
++&aocec { status = "disabled"; };
++
++&ethmac {
++	clocks = <&clkc CLKID_ETH>, <&clkc CLKID_FCLK_DIV2>,
++		 <&clkc CLKID_MPLL_50M>;
++};
++
++&{/sd2@ffe05000} {
++	sd-uhs-sdr104;
++	// 200 MHz fails initial enumeration with CRC -84 on this board.
++	max-frequency-sdio = <167000000>;
++};
++
++// Unused SLAVE controller probes the shared PHY too early and panics.
++// USB storage and the remote use the independent ff500000 host.
++&dwc2_a { status = "disabled"; };
++
++// Preserve the inherited settings present in the repaired runtime DTB.
++// Remote wake and LED behavior still require separate hardware verification.
++&{/bl30_manager} {
++	mboxes = <&mbox_pl0 G12A_REE2AO6>;
++	coreelec,legacy-nec-wakeup = <0x00dcdd22>;
++};
++
++&{/gpioleds/sys_led} {
++	gpios = <&gpio_ao GPIOAO_11 GPIO_ACTIVE_HIGH>;
++	default-state = "on";
++};

@@ -1,3 +1,8 @@
+> **本分支维护 Jiefu / SEI Jeff2021 / S905X2 / 2GB / RTL8822CS 的 CoreELEC 22 NO 媒体版。**
+> 构建、修复原因、验证状态及发布隔离请先读 [JIEFU.md](JIEFU.md)。
+> 构建入口：`./tools/jiefu/build.sh`。本机型镜像不打包或加载 `dovi.ko`。
+> 支持 Dolby Vision 的另一台 S905X2-K 仍使用 `s905x2-media-edition` 分支。
+
 # S905X2 CoreELEC 22 NO系统 修复版
 
 基于 [CoreELEC](https://github.com/CoreELEC/CoreELEC) 官方 `coreelec-22` 分支，为电焊哥 **S905X2（RTL8822CS Wi-Fi）** CEBOX盒子制作的专用修复源码。

@@ -1,0 +1,14 @@
+diff --git a/src/resources/lib/modules/updates.py b/src/resources/lib/modules/updates.py
+index 249190b..89647a9 100644
+--- a/src/resources/lib/modules/updates.py
++++ b/src/resources/lib/modules/updates.py
+@@ -612,7 +612,8 @@ class updates:
+                 self.oe.dbg_log('updates::check_updates_v2', 'Update in progress (exit)', self.oe.LOGDEBUG)
+                 return
+             if (os.path.isfile('/usr/share/s905x2/manifest.json') and
+-                    glob.glob(self.LOCAL_UPDATE_DIR + '*-S905X2-U212-2G-RTL8822CS.tar')):
++                    (glob.glob(self.LOCAL_UPDATE_DIR + '*-S905X2-U212-2G-RTL8822CS.tar') or
++                     glob.glob(self.LOCAL_UPDATE_DIR + '*-JIEFU-S905X2-2G.tar'))):
+                 return  # A verified package is already staged for the next reboot.
+             update_json = self.fetch_update_json()
+             self.oe.dbg_log('updates::check_updates_v2', 'RESULT: %s' % repr(update_json), self.oe.LOGDEBUG)

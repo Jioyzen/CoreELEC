@@ -154,6 +154,11 @@
     TEE_SOC="S928X A311D2 S905W2 S905X4 S905Y4 S905X5M S905X5 S905X5L S905Y5 S905A"
 
 # Dedicated build profile; other upstream board profiles remain unchanged.
+if [ "${JIEFU_BOARD}" = "yes" -a "${S905X2_BOARD}" = "yes" ]; then
+  echo "Select either JIEFU_BOARD or S905X2_BOARD, never both" >&2
+  exit 1
+fi
+
 if [ "${S905X2_BOARD}" = "yes" ]; then
   SUBDEVICES=""
   DTBIMG="g12a_s905x2_u212_2g_rtl8822cs.dtb"
@@ -162,6 +167,13 @@ if [ "${S905X2_BOARD}" = "yes" ]; then
 fi
 
 # Optional complete media edition; the base board profile stays minimal.
+if [ "${JIEFU_BOARD}" = "yes" ]; then
+  SUBDEVICES=""
+  DTBIMG="g12a_s905x2_u212_2g_jeff2021.dtb"
+  ADDITIONAL_DRIVERS+=" rtl88x2cs-s905x2"
+  ADDITIONAL_PACKAGES+=" jiefu-board"
+fi
+
 if [ "${JIOYZEN_MEDIA_EDITION}" = "yes" ]; then
   ADDITIONAL_PACKAGES+=" jioyzen-media"
   SYSTEM_SIZE=1024

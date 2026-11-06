@@ -12,6 +12,9 @@ PKG_LONGDESC="CoreELEC-settings: is a settings dialog for CoreELEC"
 if [ "${S905X2_BOARD}" = "yes" ]; then
   PKG_NEED_UNPACK="$(get_pkg_directory s905x2-board)"
 fi
+if [ "${JIEFU_BOARD}" = "yes" ]; then
+  PKG_NEED_UNPACK="$(get_pkg_directory jiefu-board)"
+fi
 
 PKG_MAKE_OPTS_TARGET="DISTRONAME=${DISTRONAME} \
                       ADDON_VERSION=${ADDON_VERSION} \
@@ -24,6 +27,10 @@ post_makeinstall_target() {
   ADDON_INSTALL_DIR=${INSTALL}/usr/share/kodi/addons/service.coreelec.settings
   if [ "${S905X2_BOARD}" = "yes" ]; then
     cp "$(get_pkg_directory s905x2-board)/sources/s905x2_updates.py" \
+      "${ADDON_INSTALL_DIR}/resources/lib/s905x2_updates.py"
+  fi
+  if [ "${JIEFU_BOARD}" = "yes" ]; then
+    cp "$(get_pkg_directory jiefu-board)/sources/s905x2_updates.py" \
       "${ADDON_INSTALL_DIR}/resources/lib/s905x2_updates.py"
   fi
   python_compile ${ADDON_INSTALL_DIR}/resources/lib/

@@ -13,6 +13,9 @@ PKG_TOOLCHAIN="manual"
 PKG_CANUPDATE="${PROJECT}*"
 PKG_NEED_UNPACK="${PROJECT_DIR}/${PROJECT}/bootloader"
 [ -n "${DEVICE}" ] && PKG_NEED_UNPACK+=" ${PROJECT_DIR}/${PROJECT}/devices/${DEVICE}/bootloader"
+if [ "${JIEFU_BOARD}" = "yes" ]; then
+  PKG_NEED_UNPACK+=" $(get_pkg_directory jiefu-board)"
+fi
 
 for PKG_SUBDEVICE in ${SUBDEVICES}; do
   PKG_DEPENDS_TARGET+=" u-boot-${PKG_SUBDEVICE}"
@@ -37,6 +40,10 @@ makeinstall_target() {
   # Always install the canupdate script
   if find_file_path bootloader/canupdate.sh; then
     cp -av ${FOUND_PATH} ${INSTALL}/usr/share/bootloader
+  fi
+  if [ "${JIEFU_BOARD}" = "yes" ]; then
+    cp "$(get_pkg_directory jiefu-board)/sources/canupdate.sh" \
+      ${INSTALL}/usr/share/bootloader/canupdate.sh
   fi
 
   # Always install the subdevice config script
@@ -63,6 +70,17 @@ makeinstall_target() {
     fi
   done
   find_file_path bootloader/config.ini && cp -av ${FOUND_PATH} ${INSTALL}/usr/share/bootloader
+  if [ "${JIEFU_BOARD}" = "yes" ]; then
+    cat >> ${INSTALL}/usr/share/bootloader/config.ini <<'CONFIG'
+
+# Jiefu: quiet framebuffer takeover with a serial console; CEC stays off.
+consoleopt='console=tty0 console=ttyS0,115200n8 no_console_suspend loglevel=0 systemd.show_status=false vt.global_cursor_default=0 fbcon=nodefer'
+cec_func_config='0'
+vout='1080p60hz'
+kernel_hdmimode='1080p60hz'
+coreelec='quiet setfbres=1080'
+CONFIG
+  fi
     sed -e "s/@PROJECT@/${PKG_CANUPDATE}/g" \
         -i ${INSTALL}/usr/share/bootloader/canupdate.sh
 }

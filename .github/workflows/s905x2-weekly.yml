@@ -1,132 +1,32 @@
-name: S905X2 ordinary and complete images
+name: Jiefu S905X2 NO media image (manual)
 on:
-  schedule:
-    # Sunday 03:00 Asia/Shanghai (Saturday 19:00 UTC).
-    - cron: '0 19 * * 6'
   workflow_dispatch:
-    inputs:
-      sync_upstream:
-        description: Sync official CoreELEC into base, then base fixes into media branch
-        type: boolean
-        default: true
-      publish:
-        description: Publish BOTH validated editions in ONE Release and update their feeds
-        type: boolean
-        default: true
 permissions:
-  contents: write
+  contents: read
+# Serialize with the other builds on the same self-hosted machine.
 concurrency:
   group: s905x2-image
   cancel-in-progress: false
 jobs:
   build:
+    if: github.ref == 'refs/heads/jiefu-s905x2-no'
     runs-on: [self-hosted, Linux, X64, coreelec-s905x2]
     timeout-minutes: 1440
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: s905x2-no-fixes
-          fetch-depth: 0
+          ref: ${{ github.sha }}
           clean: false
-      - name: Pin the two source branches
-        id: sources
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SYNC_UPSTREAM: ${{ github.event_name == 'schedule' || inputs.sync_upstream }}
+      - name: Build and verify Jiefu only
+        id: image
         run: |
-          set -euo pipefail
-          git config user.name 'S905X2 build bot'
-          git config user.email 's905x2-build@users.noreply.github.com'
-          merge_or_stop() {
-            if ! git merge --no-edit "$1"; then
-              git merge --abort || true
-              echo "::error::Upstream merge failed; both remote branches and published images are unchanged."
-              exit 1
-            fi
-          }
-          if [ "$SYNC_UPSTREAM" = true ]; then
-            git fetch https://github.com/CoreELEC/CoreELEC.git coreelec-22
-            merge_or_stop FETCH_HEAD
-            ./tools/s905x2/test.sh
-          fi
-          base_sha=$(git rev-parse HEAD)
-          git fetch origin s905x2-media-edition
-          media_sha=$(git rev-parse FETCH_HEAD)
-          if [ "$SYNC_UPSTREAM" = true ]; then
-            git switch --detach "$media_sha"
-            merge_or_stop "$base_sha"
-            ./tools/s905x2/test.sh
-            python3 -m unittest discover -s tools/media/tests -p 'test_*.py'
-            media_sha=$(git rev-parse HEAD)
-            # Stage and test BOTH merges before publishing either branch.
-            # Reject the whole push if a branch changed concurrently.
-            git push --atomic origin \
-              "$base_sha:refs/heads/s905x2-no-fixes" \
-              "$media_sha:refs/heads/s905x2-media-edition"
-            git switch --detach "$base_sha"
-          fi
-          echo "base_sha=$base_sha" >> "$GITHUB_OUTPUT"
-          echo "media_sha=$media_sha" >> "$GITHUB_OUTPUT"
-          state=$(mktemp -d "$RUNNER_TEMP/s905x2-dual.XXXXXX")
-          echo "state=$state" >> "$GITHUB_OUTPUT"
-          cp tools/s905x2/combine_release.py "$state/combine_release.py"
-          # Legacy single-edition releases lack editions, so rebuild once.
-          if [ "${{ github.event_name }}" = schedule ] && gh release download \
-              --repo "$GITHUB_REPOSITORY" --pattern build-manifest.json --output "$state/previous.json"; then
-            if python3 - "$state/previous.json" "$base_sha" "$media_sha" <<'PY'
-          import json,sys
-          data=json.load(open(sys.argv[1]))
-          editions=data.get('editions',{})
-          sys.exit(0 if editions.get('base',{}).get('source_commit')==sys.argv[2] and editions.get('media',{}).get('source_commit')==sys.argv[3] else 1)
-          PY
-            then
-              echo 'build=false' >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-          fi
-          echo 'build=true' >> "$GITHUB_OUTPUT"
-      - uses: actions/checkout@v4
-        if: steps.sources.outputs.build == 'true'
+          . tools/jiefu/env.sh
+          ./tools/jiefu/build.sh
+          echo "release_dir=${TARGET_DIR}/jiefu-release" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
         with:
-          ref: ${{ steps.sources.outputs.base_sha }}
-          fetch-depth: 0
-          clean: false
-      - name: Build and validate ordinary image
-        if: steps.sources.outputs.build == 'true'
-        env:
-          RELEASE_STATE: ${{ steps.sources.outputs.state }}
-        run: |
-          set -euo pipefail
-          ./tools/s905x2/build.sh
-          cp -a target/s905x2-release "$RELEASE_STATE/base"
-      - uses: actions/checkout@v4
-        if: steps.sources.outputs.build == 'true'
-        with:
-          ref: ${{ steps.sources.outputs.media_sha }}
-          fetch-depth: 0
-          clean: false
-      - name: Build and validate complete media image
-        if: steps.sources.outputs.build == 'true'
-        env:
-          RELEASE_STATE: ${{ steps.sources.outputs.state }}
-        run: |
-          set -euo pipefail
-          ./tools/media/build.sh
-          cp -a target/s905x2-media-release "$RELEASE_STATE/media"
-          python3 "$RELEASE_STATE/combine_release.py" \
-            --base "$RELEASE_STATE/base" --media "$RELEASE_STATE/media" --output "$RELEASE_STATE/release"
-      - name: Preserve both editions and validation reports
-        if: steps.sources.outputs.build == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: s905x2-ordinary-and-complete
-          path: ${{ steps.sources.outputs.state }}/release/*
+          name: jiefu-s905x2-no-${{ github.sha }}
+          path: ${{ steps.image.outputs.release_dir }}/
           if-no-files-found: error
-          compression-level: 0
           retention-days: 14
-      - name: Publish both editions in one Release
-        if: steps.sources.outputs.build == 'true' && (github.event_name == 'schedule' || inputs.publish)
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_STATE: ${{ steps.sources.outputs.state }}
-        run: python3 "$RELEASE_STATE/combine_release.py" --output "$RELEASE_STATE/release" --publish
+# This branch does not sync/push other branches or publish shared update feeds.
