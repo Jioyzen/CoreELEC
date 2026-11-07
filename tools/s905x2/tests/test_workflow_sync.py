@@ -26,7 +26,7 @@ class WorkflowSyncTests(unittest.TestCase):
         tools.mkdir(parents=True)
         (tools/'test.sh').write_text('#!/bin/sh\nexit 0\n')
         (tools/'test.sh').chmod(0o755)
-        (tools/'combine_release.py').write_text('# fixture\n')
+        (tools/'publish_media.py').write_text('# fixture\n')
         (seed/'tools/media/tests').mkdir(parents=True)
         (seed/'tools/media/tests/test_smoke.py').write_text(
             'import unittest\nclass Smoke(unittest.TestCase):\n    def test_fixture(self):\n        self.assertTrue(True)\n')
