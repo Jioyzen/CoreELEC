@@ -1,6 +1,11 @@
 name: Jiefu S905X2 NO media image (manual)
 on:
   workflow_dispatch:
+    inputs:
+      validation_only:
+        description: Check local runner and board configuration without compiling an image
+        type: boolean
+        default: false
 permissions:
   contents: read
 # Serialize with the other builds on the same self-hosted machine.
@@ -10,22 +15,32 @@ concurrency:
 jobs:
   build:
     if: github.ref == 'refs/heads/jiefu-s905x2-no'
-    runs-on: [self-hosted, Linux, X64, coreelec-s905x2]
+    runs-on: [self-hosted, Linux, X64, coreelec-s905x2, jiefu]
     timeout-minutes: 1440
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
           clean: false
+      - name: Validate local build host and media profile
+        run: |
+          hostname
+          test "$(id -u)" -ne 0
+          . tools/jiefu/env.sh
+          ./tools/jiefu/test.sh
+          ./scripts/checkdeps
+          ./tools/viewplan jiefu-board
       - name: Build and verify Jiefu only
+        if: ${{ !inputs.validation_only }}
         id: image
         run: |
           . tools/jiefu/env.sh
           ./tools/jiefu/build.sh
           echo "release_dir=${TARGET_DIR}/jiefu-release" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.validation_only }}
         with:
-          name: jiefu-s905x2-no-${{ github.sha }}
+          name: CE22-Jiefu-${{ github.run_number }}
           path: ${{ steps.image.outputs.release_dir }}/
           if-no-files-found: error
           retention-days: 14

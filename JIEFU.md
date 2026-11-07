@@ -31,9 +31,9 @@
 | 以太网时钟 | `stmmaceth` 改用 `CLKID_ETH`，保留另外两个时钟；本次 DHCP 故障也涉及路由器 LAN 口，不能全归因于 DTB。 |
 | Wi-Fi 枚举 | RTL8822CS 在 200MHz 初始化出现 CRC `-84`；将 `max-frequency-sdio` 限制为 167MHz，沿用已验证厂商驱动和 NAPI/GRO 配置。 |
 | 显示交接 | 保持 VPU `clk_level=8`、framebuffer `0x7f800000/8MB` 及 `vout_mux`，与修复版保持一致。 |
-| CEC | DTB 禁用 `aocec`，启动配置设置 `cec_func_config=0`，避免关机联动电视和功放。 |
+| CEC | 恢复官方默认：`aocec` 启用，不设置 CEC 启动覆盖。此前关闭仅用于维修，不作为镜像策略。 |
 | 身份标识 | 使用独立 `coreelec-dt-id`；保留 `amlogic-dt-id=g12a_s905x2_u212_2g_rtl8822cs`，使已有的 U-Boot 音频 DMA 停止逻辑继续生效。 |
-| 安静启动及动画 | 保留 `tty0`，增加 `fbcon=nodefer` 强制接管 framebuffer；使用 `quiet`、`loglevel=0`、`systemd.show_status=false` 隐藏屏幕文字，保留串口控制台。 |
+| 启动配置 | 使用官方 `config.ini` 和启动脚本默认值；撤回此前额外的静默、强制接管及分辨率参数。滚动文字曾由维修时启用的 `progress` 引起，不能视为官方默认故障。 |
 | 蓝牙固件 | 从已固定版本的 `kernel-firmware` 复制 `rtl_bt/rtl8822cs_fw.bin` 到厂商加载器请求的 `rtlbt/rtl8822cs_fw`，修复 HCI `0x2038` 超时和复位。 |
 | NFS 规则 | 使用 `systemd-sysctl --prefix` 替代 BusyBox 不支持的 `sysctl --pattern`；`nfsrahead` 使用构建配置的 `/usr/lib` 路径并加存在性检查。 |
 
@@ -52,9 +52,14 @@ NO 使用 Linux 5.15，NG 使用 Linux 4.9；二者 DTB 的绑定和驱动接口
 此盒子的 DV 授权条件不满足。之前显示的能力值 `6` 仅说明模块状态位，不能开启 DV。
 
 jiefu 构建选择 `jiefu-board` 包，依赖中不包含安装模块的 `s905x2-board` 包。
-SYSTEM、升级包及 FAT 启动分区均检查不存在 `dovi.ko`；不安装 `dovi-loader`，
-TEE 服务中也删除其启动和停止命令，从而不会回退搜索 Android 分区中的模块。
-`tee-loader` 和 TEE 服务仍保留，视频框架的共用源码接口继续沿用上游。
+SYSTEM、升级包及 FAT 启动分区均检查不存在 `dovi.ko`。
+**官方 `dovi-loader` 和 `opentee_linuxdriver.service` 不修改**，按官方逻辑自动探测。
+加载器可能检查 Android 分区；没有兼容模块时正常退出，不以假设存在模块为由删除官方流程。
+
+TEE 是官方服务处理的可信执行环境/可信视频固件初始化部分；同一服务先执行
+`tee-loader start`，再执行 `dovi-loader start`。不打包 DV 模块与禁用 TEE 是不同操作。
+本分支保留整套官方服务行为，没有新增“保留 TEE”的替代实现。
+
 
 ## 构建
 
@@ -89,7 +94,7 @@ BUILD_SUFFIX=jiefu
 ```
 
 `build.sh` 在编译前测试板级逻辑和媒体功能、校验离线软件部署；编译后从实际
-`.img.gz` 解出 FAT 分区及 SYSTEM，核对设备树、启动参数、固件、TEE、无 DV 模块、
+`.img.gz` 解出 FAT 分区及 SYSTEM，核对设备树、官方启动默认配置、固件、官方 TEE/DV 加载服务、无 DV 模块、
 源码提交和升级包内容，再运行镜像中嵌入的离线安装器验证。验证通过才生成发布目录。
 
 ## GitHub Actions、产物和升级
@@ -106,12 +111,12 @@ gh workflow run s905x2-weekly.yml --ref jiefu-s905x2-no
 现有 K 分支中的每周工作流继续按原配置运行。两个流程使用同一 Actions 并发组，
 避免在同一 runner 上同时进行大型编译；构建缓存目录仍独立。
 
-产物使用 `-JIEFU-S905X2-2G` 名称，包含 `.img.gz`、`.tar`、`SHA256SUMS`、
+产物使用简短名称，如 `CE22-Jiefu-20261107-103014.img.gz` / `.tar`，包含 `.img.gz`、`.tar`、`SHA256SUMS`、
 `build-manifest.json`、`offline-image-validation.json` 和 `update.json`。
 首次安装刷写 USB/SD 镜像；升级包只用于同一 jiefu NO 机型。
-早期启动升级检查增加板型验证，即使都是 `Amlogic-no.aarch64` 也会核对设备树身份，
-并拒绝已迁移 jiefu 系统换入缺少 jiefu 标识的 K 系统。不要使用 `.nocompat` 绕过检查。
-旧镜像自身的 initramfs 没有新校验，因此从旧版迁移时仍须人工选对产物。
+不修改官方 initramfs 升级判断和 `canupdate.sh`；同架构手工放置错误升级包仍可能被接受，
+因此必须人工选对机型。自动更新客户端使用独立板型、版别和文件名检查来隔离频道。
+
 
 更新客户端仅访问 `releases/download/jiefu-channel/update.json`，并校验板型、版本、
 架构、版别、文件名、下载地址、大小和 SHA256。频道尚未发布或网络不可用时返回无更新。
@@ -120,13 +125,24 @@ gh workflow run s905x2-weekly.yml --ref jiefu-s905x2-no
 需要开放系统更新时，将已验证版本的 `update.json` 发布到独立的 `jiefu-channel`
 预发布 Release；始终保持非 Latest，避免影响原机型的发布源。
 
-升级保留用户已有的 `/flash/config.ini`。从手工修复版升级后，应核对它与
-`tools/jiefu/validate.py` 中的启动默认值一致；新刷写镜像会自动带上这些值。
+升级保留用户已有的 `/flash/config.ini`。从手工维修版迁移时，应先备份再删除临时
+调试参数，使用官方默认配置；新刷写镜像直接带官方文件。
+
+验证 runner 连接而不编译完整镜像，可执行：
+
+```bash
+gh workflow run s905x2-weekly.yml --ref jiefu-s905x2-no -f validation_only=true
+```
+
+本机 runner 位于 `/home/zeng/actions-runner`，注册名称 `s905x2-persistent-builder`，
+标签含 `coreelec-s905x2,jiefu`，由 systemd 以普通用户 `zeng` 开机启动。
+工作流检查主机依赖、实际板级测试及构建依赖计划。
+
 
 ## 固件边界和验证状态
 
 镜像维护 CoreELEC USB/SD 系统。不会写入 Android 的 Logo 或开机动画分区；
-升级脚本对 jiefu 跳过 `fw_setenv` 和 BL301 注入。首次启用 USB 启动仍沿用
+引导及升级流程沿用官方实现，没有额外增加环境写入或固件注入策略。首次启用 USB 启动仍沿用
 CoreELEC 标准的 `aml_autoscript` 多系统引导机制，可能保存必要的引导环境。
 上电第一屏取决于盒子当前的原厂/已定制固件，CoreELEC 接管后播放自身动画。
 
@@ -137,11 +153,28 @@ CoreELEC 标准的 `aml_autoscript` 多系统引导机制，可能保存必要�
 2026-11-07 本次源码迁移验证：
 
 - 使用固定版本 `common_drivers` 和 Linux 5.15 头文件编译专用 DTS，板级校验通过。
-- 与本地实机最终 DTB 反编译后比较，除 `model` 名称外一致；实机基线 SHA256 为
+- 与本地实机最终 DTB 反编译后比较，恢复 CEC 默认后，仅 `model` 名称与 `aocec/status` 相比维修基线有预期差异；维修基线 SHA256 为
   `8d90fdfbc30112c13c14d7f357163c0ad129e6eee9d67d10a5067360a792963e`。
-- 已执行真实安装钩子的隔离测试：板级包、U-Boot 配置和 TEE 保留/DV 移除；验证同架构下的跨板升级拒绝。
+- 已执行真实安装钩子的隔离测试：板级包不含 DV、U-Boot 安装官方配置、TEE/DV 官方加载服务原样保留；验证自动更新拒绝其他板型和版别。
 - 已执行媒体版测试和相关包元数据检查；新补丁验证可干净应用。
-- **尚未编译完整新镜像，也未对本分支的新产物做实机回归。** 当前盒子的运行验证来自先前修复镜像。
+- **尚未编译完整新镜像，也未对本分支的新产物做实机回归。** 完整新编译产物仍待验证；本次对已有系统做恢复官方默认值的实机对照，结果记录在文末。
 
 后续候选镜像至少检查冷启动、重启、无屏幕日志的动画交接、USB 遥控、Wi-Fi/有线 DHCP、
 蓝牙扫描、视频播放及 TEE 状态，确认无 panic/Oops、存储 I/O 错误和新增服务失败。
+
+## DTB 来源与“完全正常”的边界
+
+现场 DTB 来自用户 CE22 NO 媒体镜像中的专用设备树（它是通用 S905X2 树的扩展），
+通过 `fdtput` 修改后启动验证；没有把 Android 原厂 DTB 直接交给 NO 内核。
+原厂 Android DTS、U-Boot 输出及内核绑定用于核对内存区间、显示缓冲和硬件资源。
+源码分支将同样的修改固化为专用 DTS，使用符号时钟而非复制某份二进制的 phandle。
+
+已确认启动、USB 存储/遥控、桌面和所测短时播放；不代表所有休眠唤醒、音频透传、
+HDMI 模式和长时间负载均已测试。ramoops 冲突与本机 U-Boot 内存布局有关，
+SDIO 频率与本机硬件稳定性有关，USB 则有明确共享 PHY 初始化崩溃堆栈。
+这些优先通过本机 DTB 修正，不据此泛称官方代码“错误”。
+蓝牙 HCI 超时和 NFS 规则/程序路径失败有单独日志及对照结果，不能由 DTB 单独解决，
+因此保留相应的小范围固件映射和打包兼容修复。
+
+全仓库停止普通适配版构建，仅维护 K 与 jiefu 各自的完整媒体构建；
+普通分支可继续作为公共源码维护来源，但不再产出普通镜像。

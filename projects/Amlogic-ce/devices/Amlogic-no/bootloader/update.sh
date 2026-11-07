@@ -214,7 +214,7 @@ if [ -f ${BOOT_ROOT}/cfgload ]; then
     echo "Updating aml_autoscript..."
     cp -p /usr/share/bootloader/aml_autoscript ${BOOT_ROOT}
 
-    if [ -e /dev/env -a ! -f /usr/share/jiefu/manifest.json ]; then
+    if [ -e /dev/env ]; then
       mkdir -p /var/lock
       dd if=${BOOT_ROOT}/aml_autoscript bs=72 skip=1 status=none | \
       while read line; do
@@ -229,12 +229,10 @@ if [ -f ${BOOT_ROOT}/cfgload ]; then
     cp -p /usr/share/bootloader/recovery.img ${BOOT_ROOT}
   fi
 
-  if [ ! -f /usr/share/jiefu/manifest.json ]; then
-    /usr/lib/coreelec/check-bl301
-    if [ ${?} = 1 ]; then
-      echo "Found custom CoreELEC BL30, running inject_bl301 tool..."
-      inject_bl301 -Y &>/dev/null
-    fi
+  /usr/lib/coreelec/check-bl301
+  if [ ${?} = 1 ]; then
+    echo "Found custom CoreELEC BL30, running inject_bl301 tool..."
+    inject_bl301 -Y &>/dev/null
   fi
 fi
 

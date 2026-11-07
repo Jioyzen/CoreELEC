@@ -10,6 +10,5 @@ bash -n tools/jiefu/{build.sh,env.sh,test.sh} \
   projects/Amlogic-ce/packages/mediacenter/CoreELEC-settings/package.mk \
   projects/Amlogic-ce/packages/linux-drivers/amlogic/opentee_linuxdriver/package.mk \
   projects/Amlogic-ce/packages/linux-firmware/amlogic/rtkbt-firmware-aml/package.mk
-sh -n projects/Amlogic-ce/packages/jiefu-board/sources/canupdate.sh \
-  projects/Amlogic-ce/devices/Amlogic-no/bootloader/update.sh \
+sh -n projects/Amlogic-ce/devices/Amlogic-no/bootloader/update.sh \
   packages/sysutils/busybox/scripts/init

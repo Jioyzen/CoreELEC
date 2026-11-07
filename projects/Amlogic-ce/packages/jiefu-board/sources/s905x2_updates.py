@@ -32,7 +32,8 @@ def validate_feed(data, architecture=ARCHITECTURE):
         raise ValueError('Update belongs to another edition')
     artifact = data['artifact']
     name = artifact['name']
-    expected = 'CoreELEC-' + ARCHITECTURE + '-' + data['version'] + '-JIEFU-S905X2-2G.tar'
+    stamp = data['version'].rsplit('_', 1)[1]
+    expected = 'CE22-Jiefu-' + stamp[:8] + '-' + stamp[8:] + '.tar'
     if name != expected:
         raise ValueError('Unexpected upgrade package name')
     url = artifact['url']
@@ -103,7 +104,7 @@ def manual_response(feed):
     base, name = url.rsplit('/', 1)
     return {CHANNEL: {
         'url': base + '/',
-        'prettyname_regex': r'CoreELEC-Amlogic-no\.aarch64-(.*?)-JIEFU-S905X2-2G\.tar',
+        'prettyname_regex': r'CE22-Jiefu-(.*?)\.tar',
         'project': {ARCHITECTURE: {'releases': {'1': {'file': {'name': name}}}}},
     }}
 

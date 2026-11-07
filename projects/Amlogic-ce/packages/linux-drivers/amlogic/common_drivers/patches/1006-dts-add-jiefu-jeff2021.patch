@@ -9,10 +9,10 @@ index 5138de6..f83f60c 100644
  dtb-y += g12a_s905x2_2g.dtb
 diff --git a/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_jeff2021.dts b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_jeff2021.dts
 new file mode 100644
-index 0000000..c3ea8e4
+index 0000000..22f4536
 --- /dev/null
 +++ b/arch/arm64/boot/dts/amlogic/g12a_s905x2_u212_2g_jeff2021.dts
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,52 @@
 +// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
 +// Jiefu / SEI Jeff2021: keep separate from the DV-capable S905X2-K tree.
 +#include "g12a_s905x2_2g.dts"
@@ -38,8 +38,6 @@ index 0000000..c3ea8e4
 +&{/reserved-memory/ramoops@0x07400000} {
 +	reg = <0x0 0x09400000 0x0 0x100000>;
 +};
-+
-+&aocec { status = "disabled"; };
 +
 +&ethmac {
 +	clocks = <&clkc CLKID_ETH>, <&clkc CLKID_FCLK_DIV2>,

@@ -247,15 +247,6 @@ get_project_version() {
 is_compatible() {
   local result=1
 
-  # Board identity must be checked even when both images are Amlogic-no.
-  # Also reject leaving Jiefu for a K-box image via a manually staged tar.
-  if [ -f /sysroot/usr/share/jiefu/manifest.json -o \
-       -f /update/usr/share/jiefu/manifest.json ]; then
-    [ -f /update/usr/share/jiefu/manifest.json ] &&
-      sh /update/usr/share/bootloader/canupdate.sh "${1}" "${2}"
-    return ${?}
-  fi
-
   if [ "${1}" = "${2}" ]; then
     result=0
   else

@@ -84,7 +84,8 @@ def collect():
     # Collect into a staging directory; failed checks never look like a release.
     with tempfile.TemporaryDirectory(prefix='.jiefu-release-', dir=target) as staging:
         stage = pathlib.Path(staging)
-        name = 'CoreELEC-Amlogic-no.aarch64-' + version + '-JIEFU-S905X2-2G'
+        stamp = version.rsplit('_', 1)[1]
+        name = 'CE22-Jiefu-' + stamp[:8] + '-' + stamp[8:]
         shutil.copy2(image, stage / (name + '.img.gz'))
         package = stage / (name + '.tar')
         shutil.copy2(update, package)
@@ -107,7 +108,7 @@ def collect():
         (stage / 'build-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
         (stage / 'RELEASE-NOTES.md').write_text(
             '# Jiefu / SEI Jeff2021 CoreELEC 22 NO\n\n'
-            'Dedicated 2GB RTL8822CS media image; Dolby Vision module omitted, CEC disabled.\n'
+            'Dedicated 2GB RTL8822CS media image; Dolby Vision module omitted, official defaults retained.\n'
             'Use .img.gz for USB installation; .tar only for the same Jiefu NO board.\n'
             'Static logo/Android partitions are not modified. This build awaits hardware validation.\n\n'
             'Source: https://github.com/Jioyzen/CoreELEC/commit/' + revision + '\n')

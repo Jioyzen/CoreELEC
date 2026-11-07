@@ -25,9 +25,7 @@ makeinstall_target() {
 
   mkdir -p ${INSTALL}/usr/lib/coreelec
     install -m 0755 ${PKG_DIR}/scripts/tee-loader.sh ${INSTALL}/usr/lib/coreelec/tee-loader
-    if [ "${JIEFU_BOARD}" != "yes" ]; then
-      install -m 0755 ${PKG_DIR}/scripts/dovi-loader.sh ${INSTALL}/usr/lib/coreelec/dovi-loader
-    fi
+    install -m 0755 ${PKG_DIR}/scripts/dovi-loader.sh ${INSTALL}/usr/lib/coreelec/dovi-loader
 
   cp -rP $(get_pkg_directory ${PKG_NAME})/filesystem/${ARCH}/usr ${INSTALL}
 
@@ -35,12 +33,6 @@ makeinstall_target() {
 }
 
 post_install() {
-  # Do not probe Android partitions for DV on the non-DV Jiefu board.
-  # Keep TEE initialization for the other video firmware.
-  if [ "${JIEFU_BOARD}" = "yes" ]; then
-    sed -i '/^Exec.*=\/usr\/lib\/coreelec\/dovi-loader /d' \
-      ${INSTALL}/usr/lib/systemd/system/opentee_linuxdriver.service
-  fi
   enable_service opentee_linuxdriver.service
 
   # create mount points for Android partitions

@@ -20,7 +20,7 @@ spec.loader.exec_module(updates)
 
 
 def feed():
-    name = 'CoreELEC-Amlogic-no.aarch64-22.0-Piers_devel_20261101073014-JIEFU-S905X2-2G.tar'
+    name = 'CE22-Jiefu-20261101-073014.tar'
     return {'schema': 1, 'edition': 'jiefu-media', 'board_id': BOARD_ID,
             'architecture': 'Amlogic-no.aarch64', 'version': '22.0-Piers_devel_20261101073014',
             'build_id': 'a' * 40, 'artifact': {'name': name, 'size': 100,
@@ -39,8 +39,7 @@ class UpdateTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaises(ValueError):
                 updates.validate_feed(bad)
         bad = feed()
-        bad['artifact']['name'] = bad['artifact']['name'].replace('JIEFU-S905X2-2G',
-                                                                'S905X2-U212-2G-RTL8822CS')
+        bad['artifact']['name'] = 'CoreELEC-Amlogic-no.aarch64-22.0-Piers_devel_20261101073014-MEDIA-S905X2-U212-2G-RTL8822CS.tar'
         with self.assertRaises(ValueError):
             updates.validate_feed(bad)
 
@@ -97,7 +96,7 @@ case " $ADDITIONAL_PACKAGES " in *" jioyzen-media "*) ;; *) exit 1 ;; esac
             self.assertFalse(list(path.rglob('dovi*')))
             self.assertTrue((path / 'usr/lib/coreelec/evrepeat-policy.sh').is_file())
 
-    def test_tee_packaging_removes_dv_loader_and_keeps_tee(self):
+    def test_official_tee_and_dv_loader_are_unchanged(self):
         package = ROOT / 'projects/Amlogic-ce/packages/linux-drivers/amlogic/opentee_linuxdriver'
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp)
@@ -114,13 +113,14 @@ post_install
 ''', package, path, cwd=path)
             image = path / 'image'
             self.assertTrue((image / 'usr/lib/coreelec/tee-loader').is_file())
-            self.assertFalse((image / 'usr/lib/coreelec/dovi-loader').exists())
+            self.assertTrue((image / 'usr/lib/coreelec/dovi-loader').is_file())
             service = (image / 'usr/lib/systemd/system/opentee_linuxdriver.service').read_text()
-            self.assertNotIn('dovi-loader', service)
+            self.assertIn('ExecStart=/usr/lib/coreelec/dovi-loader start', service)
+            self.assertEqual(service, (package / 'system.d/opentee_linuxdriver.service').read_text())
             self.assertIn('ExecStart=/usr/lib/coreelec/tee-loader start', service)
             self.assertIn('ExecStop=/usr/lib/coreelec/tee-loader stop', service)
 
-    def test_bootloader_install_quiet_defaults(self):
+    def test_bootloader_installs_official_defaults(self):
         package = ROOT / 'projects/Amlogic-ce/packages/u-boot'
         boot = ROOT / 'projects/Amlogic-ce/devices/Amlogic-no/bootloader'
         with tempfile.TemporaryDirectory() as tmp:
@@ -134,45 +134,9 @@ find_file_path() { FOUND_PATH="$JIEFU_TEST_BOOT/${1#bootloader/}"; [ -f "$FOUND_
 makeinstall_target
 ''', package, tmp, ROOT, boot)
             validate_boot_config(pathlib.Path(tmp) / 'usr/share/bootloader/config.ini')
-            self.assertIn(BOARD_ID, (pathlib.Path(tmp) / 'usr/share/bootloader/canupdate.sh').read_text())
+            self.assertEqual((pathlib.Path(tmp) / 'usr/share/bootloader/config.ini').read_bytes(),
+                             (boot / 'config.ini').read_bytes())
 
-    def test_upgrade_checks_same_architecture_board_identity(self):
-        source = (ROOT / 'packages/sysutils/busybox/scripts/init').read_text()
-        function = 'is_compatible() {' + source.split('is_compatible() {', 1)[1].split('\n}', 1)[0] + '\n}'
-        with tempfile.TemporaryDirectory() as tmp:
-            root = pathlib.Path(tmp)
-            for prefix in ('sysroot', 'update'):
-                (root / prefix / 'usr/share/jiefu').mkdir(parents=True)
-            script = root / 'update/usr/share/bootloader/canupdate.sh'
-            script.parent.mkdir()
-            # Run the actual canupdate code against a controlled runtime DT-ID.
-            checker = (BOARD / 'sources/canupdate.sh').read_text().replace(
-                '/proc/device-tree/coreelec-dt-id', str(root / 'dt-id'))
-            script.write_text(checker)
-            mock_bin = root / 'bin'
-            mock_bin.mkdir()
-            (mock_bin / 'uname').write_text('#!/bin/sh\necho 5.15.196\n')
-            (mock_bin / 'uname').chmod(0o755)
-            function = function.replace('/sysroot/', str(root / 'sysroot') + '/').replace(
-                '/update/', str(root / 'update') + '/')
-            env = dict(os.environ, PATH=str(mock_bin) + ':' + os.environ['PATH'])
-
-            def compatible(board, old_marker, new_marker):
-                (root / 'dt-id').write_bytes(board.encode() + b'\0')
-                for prefix, present in [('sysroot', old_marker), ('update', new_marker)]:
-                    marker = root / prefix / 'usr/share/jiefu/manifest.json'
-                    if present:
-                        marker.touch()
-                    else:
-                        marker.unlink(missing_ok=True)
-                return subprocess.run(['sh', '-c', function +
-                    '\nis_compatible Amlogic-no.aarch64 Amlogic-no.aarch64'],
-                    env=env, capture_output=True).returncode
-
-            self.assertEqual(compatible(BOARD_ID, True, True), 0)
-            self.assertEqual(compatible(BOARD_ID, False, True), 0)
-            self.assertNotEqual(compatible('g12a_s905x2_u212_2g_rtl8822cs', False, True), 0)
-            self.assertNotEqual(compatible(BOARD_ID, True, False), 0)
 
 
 if __name__ == '__main__':
