@@ -106,12 +106,10 @@ def collect():
                         hardware_tested_for_this_build=False,
                         image_validation='passed', media_offline_validation='passed')
         (stage / 'build-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+        report = json.loads((stage / 'offline-image-validation.json').read_text())
+        notes = (ROOT / 'tools/jiefu/RELEASE-NOTES.md').read_text(encoding='utf-8')
         (stage / 'RELEASE-NOTES.md').write_text(
-            '# Jiefu / SEI Jeff2021 CoreELEC 22 NO\n\n'
-            'Dedicated 2GB RTL8822CS media image; Dolby Vision module omitted, official defaults retained.\n'
-            'Use .img.gz for USB installation; .tar only for the same Jiefu NO board.\n'
-            'Static logo/Android partitions are not modified. This build awaits hardware validation.\n\n'
-            'Source: https://github.com/Jioyzen/CoreELEC/commit/' + revision + '\n')
+            notes.format(addon_count=report['addon_count'], revision=revision), encoding='utf-8')
         (stage / 'SHA256SUMS').write_text(''.join(
             sha256(p) + '  ' + p.name + '\n' for p in sorted(stage.iterdir()) if p.is_file()))
         if out.exists():

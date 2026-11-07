@@ -110,6 +110,8 @@ gh workflow run s905x2-weekly.yml --ref jiefu-s905x2-no
 工作流没有定时同步或分支推送；通过后上传保留 14 天的构建 artifact。
 手动设置 `publish=true` 时，在产物校验成功后发布独立 jiefu 预发布版本，
 不会设为 Latest，也不更新稳定频道。
+发布标题使用简短中文名称，说明由 `tools/jiefu/RELEASE-NOTES.md` 生成，
+插件及依赖数量取自本次镜像的离线验证报告。
 现有 K 分支中的每周工作流继续按原配置运行。两个流程使用同一 Actions 并发组，
 避免在同一 runner 上同时进行大型编译；构建缓存目录仍独立。
 

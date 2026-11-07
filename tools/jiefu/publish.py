@@ -72,7 +72,8 @@ def publish(output, expected_commit):
     # Keep uploads private until all assets have reached GitHub successfully.
     subprocess.run(['gh', 'release', 'create', tag, '--repo', REPOSITORY,
                     '--target', expected_commit, '--draft', '--prerelease', '--latest=false',
-                    '--title', 'CoreELEC 22 Jiefu Media ' + manifest['version'],
+                    '--title', 'CoreELEC 22 NO · Jiefu 媒体完整版 · ' +
+                    manifest['version'].rsplit('_', 1)[-1][:8],
                     '--notes-file', str(output / 'RELEASE-NOTES.md'),
                     *map(str, sorted(output.iterdir()))], check=True)
     subprocess.run(['gh', 'release', 'edit', tag, '--repo', REPOSITORY,
