@@ -36,6 +36,7 @@ python3 tools/s905x2/tests/test_updates.py
 python3 tools/s905x2/tests/test_combined_release.py
 python3 tools/s905x2/tests/test_image_validation.py
 python3 tools/s905x2/tests/test_workflow_sync.py
+python3 tools/s905x2/tests/test_publish_media.py
 bash -n projects/Amlogic-ce/packages/linux-drivers/rtl88x2cs-s905x2/package.mk \
   projects/Amlogic-ce/packages/s905x2-board/package.mk
 sh -n projects/Amlogic-ce/packages/linux-drivers/amlogic/opentee_linuxdriver/scripts/dovi-loader.sh
