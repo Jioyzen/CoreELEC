@@ -107,7 +107,9 @@ BUILD_SUFFIX=jiefu
 gh workflow run s905x2-weekly.yml --ref jiefu-s905x2-no
 ```
 
-工作流没有定时同步、分支推送和自动发布步骤；通过后上传保留 14 天的构建 artifact。
+工作流没有定时同步或分支推送；通过后上传保留 14 天的构建 artifact。
+手动设置 `publish=true` 时，在产物校验成功后发布独立 jiefu 预发布版本，
+不会设为 Latest，也不更新稳定频道。
 现有 K 分支中的每周工作流继续按原配置运行。两个流程使用同一 Actions 并发组，
 避免在同一 runner 上同时进行大型编译；构建缓存目录仍独立。
 
@@ -207,3 +209,14 @@ SDIO 频率与本机硬件稳定性有关，USB 则有明确共享 PHY 初始化
 [GitHub Actions 验证任务](https://github.com/Jioyzen/CoreELEC/actions/runs/42330293067)，
 执行主机为 `zeng-ubuntu-ai02`，包含主机依赖检查、板级/媒体测试和构建依赖解析。
 完整镜像编译尚未执行。默认分支与 K 媒体分支均已停止普通版构建。
+
+## 固定源码构建并发布
+
+```bash
+gh workflow run s905x2-weekly.yml --ref jiefu-s905x2-no \
+  -f validation_only=false -f publish=true
+```
+
+工作流固定使用触发时的分支提交，不合并上游。发布前再次校验 SHA256、板型、
+源码提交、升级包与镜像的对应关系及离线部署报告；先上传到 draft，
+全部上传完成后才转为公开 prerelease。正式稳定频道仍需新镜像实机验证后单独开放。
